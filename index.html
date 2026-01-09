@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Strukturwandel Köln – interaktive Rollenkarte (Mülheim-Fokus, SW-Hintergrund)</title>
+<title>Strukturwandel Köln – reale Grenzen (Stadtteile + Stadtviertel), SW-Kacheln, Mülheim-Fokus</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
@@ -11,11 +11,12 @@
   header { padding:10px 12px; border-bottom:1px solid #ddd; background:#fff; }
   header h1 { font-size:16px; margin:0 0 6px; }
   header p { margin:0; font-size:12px; color:#444; line-height:1.25; }
-  #map { height: calc(100% - 78px); width:100%; }
+  #map { height: calc(100% - 84px); width:100%; }
 
-  /* Schwarz/Weiß-Look für Kacheln */
-  .leaflet-tile { filter: grayscale(100%) contrast(115%) brightness(105%); }
+  /* SW-Look */
+  .leaflet-tile { filter: grayscale(100%) contrast(120%) brightness(108%); }
 
+  /* Popup Buttons */
   .roleBtn{
     display:block; width:100%;
     margin:6px 0; padding:10px 12px;
@@ -24,6 +25,16 @@
   }
   .roleBtn:active { transform: translateY(1px); }
 
+  /* kleines Statusfeld */
+  .statusBox{
+    background: rgba(255,255,255,.92);
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    padding: 8px 10px;
+    box-shadow: 0 10px 26px rgba(0,0,0,.08);
+    font-size: 12px;
+    line-height: 1.25;
+  }
   .pill {
     display:inline-block; padding:2px 8px; border-radius:999px;
     border:1px solid #ddd; background:#fafafa; font-size:11px; color:#333;
@@ -32,10 +43,10 @@
 </head>
 <body>
 <header>
-  <h1>Strukturwandel Köln (rechtsrheinisch) – Rollenkarte</h1>
+  <h1>Strukturwandel Köln (rechtsrheinisch) – reale Grenzen + Rollen</h1>
   <p>
-    Hintergrund: <b>Schwarz/Weiß</b>. Klick auf eine Kachel → Rolle wählen: Industrie <b>(blau)</b>, Start-ups <b>(gelb)</b>, Wohnen <b>(rot)</b>, Freizeit/Kultur <b>(grün)</b>.
-    <br><span class="pill">Fokus: Mülheim</span> (in mehrere Teilkacheln) · <span class="pill">Spezialkacheln</span>: Lanxess Arena, Carlswerk.
+    Hintergrund: <b>Schwarz/Weiß</b>. Klick auf ein Gebiet → Rolle wählen: Industrie <b>(blau)</b>, Start-ups <b>(gelb)</b>, Wohnen <b>(rot)</b>, Freizeit/Kultur <b>(grün)</b>.
+    <br><span class="pill">Reale Grenzen</span> aus „Offene Daten Köln“ (Stadtteile + Stadtviertel). <span class="pill">Fokus</span>: Stadtbezirk Mülheim (Stadtviertel = feinere Unterteilung).
   </p>
 </header>
 
@@ -43,26 +54,28 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-const map = L.map('map', { zoomControl: true }).setView([50.954, 7.010], 14);
+/* =========================================================
+   Datenquellen (Offene Daten Köln / Geoportal ArcGIS REST)
+   - Stadtteile: MapServer/3
+   - Stadtviertel: MapServer/1
+   Quelle: offenedaten-koeln.de Datensätze „Stadtteile Köln“ und „Stadtviertel Köln“.
+   ========================================================= */
 
-// Basemap (schwarz/weiß über CSS)
-const cartoPositron = L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png', {
-  subdomains: 'abcd',
-  maxZoom: 20,
+const map = L.map('map', { zoomControl: true }).setView([50.954, 7.015], 14);
+
+// SW-Basemap (Carto Positron) + optional OSM
+const carto = L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png', {
+  subdomains: 'abcd', maxZoom: 20,
   attribution: 'Map tiles by Carto, under CC BY 3.0. Data by OpenStreetMap, under ODbL.'
 }).addTo(map);
 
 const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19,
-  attribution: '© OpenStreetMap-Mitwirkende'
+  maxZoom: 19, attribution: '© OpenStreetMap-Mitwirkende'
 });
 
-L.control.layers({
-  "Carto Positron (SW)": cartoPositron,
-  "OSM Standard (SW)": osm
-}, null, {collapsed:true}).addTo(map);
+L.control.layers({"Carto Positron (SW)": carto, "OSM Standard (SW)": osm}, null, {collapsed:true}).addTo(map);
 
-// Rollen
+// Rollen / Farben
 const roleColors = {
   "Industrie": "blue",
   "Start-ups": "yellow",
@@ -70,104 +83,293 @@ const roleColors = {
   "Freizeit/Kultur": "green"
 };
 
-// localStorage
-const STORAGE_KEY = "koeln_roles_muelheim_v1";
+const STORAGE_KEY = "koeln_roles_real_v1";
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch(e) { saved = {}; }
 function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(saved)); }
 
-function box(lat, lon, dLat, dLon) {
-  return [
-    [lat - dLat, lon - dLon],
-    [lat - dLat, lon + dLon],
-    [lat + dLat, lon + dLon],
-    [lat + dLat, lon - dLon]
-  ];
-}
-
-function styleFor(name, important=false, special=false) {
-  const role = saved[name];
-  const fillColor = (role && roleColors[role]) ? roleColors[role] : "white";
-  const fillOpacity = (role && roleColors[role]) ? 0.60 : 0.18;
-  const weight = special ? 4 : (important ? 3 : 2);
-  return { color:"#111", weight, fillColor, fillOpacity };
-}
-
-function popupHTML(name) {
+function popupHTML(key, title){
   return `
-    <b>${name}</b><br>
-    <button class="roleBtn" onclick="setRole('${name}','Industrie')">Industrie (blau)</button>
-    <button class="roleBtn" onclick="setRole('${name}','Start-ups')">Start-ups (gelb)</button>
-    <button class="roleBtn" onclick="setRole('${name}','Wohnen')">Wohnen (rot)</button>
-    <button class="roleBtn" onclick="setRole('${name}','Freizeit/Kultur')">Freizeit/Kultur (grün)</button>
-    <button class="roleBtn" onclick="clearRole('${name}')">Keine Zuordnung</button>
+    <b>${title}</b><br>
+    <button class="roleBtn" onclick="setRole('${key}','Industrie')">Industrie (blau)</button>
+    <button class="roleBtn" onclick="setRole('${key}','Start-ups')">Start-ups (gelb)</button>
+    <button class="roleBtn" onclick="setRole('${key}','Wohnen')">Wohnen (rot)</button>
+    <button class="roleBtn" onclick="setRole('${key}','Freizeit/Kultur')">Freizeit/Kultur (grün)</button>
+    <button class="roleBtn" onclick="clearRole('${key}')">Keine Zuordnung</button>
   `;
 }
 
-const layers = {};
+// Layer registry
+const layerByKey = {};
 
-window.setRole = function(name, role) {
-  saved[name] = role; save();
-  if (layers[name]) layers[name].setStyle(styleFor(name, layers[name].__important, layers[name].__special));
-  if (layers[name]) layers[name].closePopup();
+window.setRole = function(key, role){
+  saved[key] = role; save();
+  if(layerByKey[key]) layerByKey[key].setStyle(styleForFeature({properties:{__key:key, __important:layerByKey[key].__important, __special:layerByKey[key].__special}}));
+  if(layerByKey[key]) layerByKey[key].closePopup();
 };
-window.clearRole = function(name) {
-  delete saved[name]; save();
-  if (layers[name]) layers[name].setStyle(styleFor(name, layers[name].__important, layers[name].__special));
-  if (layers[name]) layers[name].closePopup();
+window.clearRole = function(key){
+  delete saved[key]; save();
+  if(layerByKey[key]) layerByKey[key].setStyle(styleForFeature({properties:{__key:key, __important:layerByKey[key].__important, __special:layerByKey[key].__special}}));
+  if(layerByKey[key]) layerByKey[key].closePopup();
 };
 
-function addTile(name, coords, opts={}) {
-  const important = !!opts.important;
-  const special = !!opts.special;
-  const poly = L.polygon(coords, styleFor(name, important, special)).addTo(map);
-  poly.__important = important;
-  poly.__special = special;
-  poly.bindPopup(popupHTML(name), {maxWidth: 280});
-  poly.on('click', () => poly.openPopup()); // Farbauswahl sofort
-  layers[name] = poly;
-  return poly;
+// Styling: Stadtteile grob, Stadtviertel fein (Mülheim)
+function styleForFeature(feature){
+  const p = feature.properties || {};
+  const key = p.__key;
+  const role = saved[key];
+  const fillColor = (role && roleColors[role]) ? roleColors[role] : "white";
+  const fillOpacity = (role && roleColors[role]) ? 0.60 : 0.18;
+
+  const important = !!p.__important;
+  const special = !!p.__special;
+  const weight = special ? 5 : (important ? 3 : 2);
+
+  return { color:"#111", weight, fillColor, fillOpacity };
 }
 
-// Rechtsrheinisch (grobe Kacheln)
-addTile("Deutz (gesamt)", box(50.9388, 6.9945, 0.0065, 0.0120));
-addTile("Kalk (gesamt)",  box(50.9405, 7.0300, 0.0075, 0.0150));
-addTile("Buchheim",       box(50.9530, 7.0220, 0.0048, 0.0100));
-addTile("Buchforst",      box(50.9500, 7.0120, 0.0043, 0.0080));
-addTile("Poll",           box(50.9195, 7.0120, 0.0060, 0.0120));
+// Status-Box
+const statusCtl = L.control({position:'topleft'});
+let statusEl;
+statusCtl.onAdd = function(){
+  statusEl = L.DomUtil.create('div', 'statusBox');
+  statusEl.innerHTML = "<b>Status:</b> Lade Grenzen…";
+  L.DomEvent.disableClickPropagation(statusEl);
+  return statusEl;
+};
+statusCtl.addTo(map);
 
-// Mülheim-Fokus (Teil-Kacheln)
-addTile("Mülheim – Rheinfront", box(50.9570, 7.0080, 0.0048, 0.0100), {important:true});
-addTile("Mülheim – Wiener Platz / Zentrum", box(50.9610, 7.0105, 0.0042, 0.0080), {important:true});
-addTile("Mülheim – Schanzenstraße / Kreativcluster", box(50.9560, 7.0170, 0.0040, 0.0065), {important:true});
-addTile("Mülheim – Keupstraße / Handel & Migration", box(50.9590, 7.0235, 0.0038, 0.0070), {important:true});
-addTile("Mülheim – Nord / Wohnen", box(50.9670, 7.0150, 0.0045, 0.0100), {important:true});
+function setStatus(html){ if(statusEl) statusEl.innerHTML = html; }
 
-// Spezialkacheln
-addTile("Lanxess Arena (Spezial)", box(50.9386, 6.9822, 0.0012, 0.0018), {special:true});
-addTile("Carlswerk (Spezial)",     box(50.9546, 7.0149, 0.0012, 0.0018), {special:true});
+/* =========================================================
+   ArcGIS REST Fetch
+   - Versucht zuerst f=geojson (wenn Server unterstützt)
+   - Fallback: f=pjson und ESRI->GeoJSON Konvertierung (Polygon/MultiPolygon)
+   ========================================================= */
+async function arcgisQuery(layerId, params){
+  const base = `https://geoportal.stadt-koeln.de/arcgis/rest/services/Basiskarten/kgg/MapServer/${layerId}/query`;
+  const p = new URLSearchParams(params);
+  // 1) try geojson
+  let url = base + "?" + p.toString() + "&f=geojson";
+  try{
+    const r = await fetch(url);
+    if(r.ok){
+      const gj = await r.json();
+      if(gj && gj.type === "FeatureCollection") return gj;
+    }
+  } catch(e){ /* ignore */ }
 
-// Fokus-Bounds
-const focusBounds = L.latLngBounds([[50.946, 6.982],[50.973, 7.035]]);
-map.fitBounds(focusBounds, {padding:[20,20]});
+  // 2) fallback pjson
+  url = base + "?" + p.toString() + "&f=pjson";
+  const r2 = await fetch(url);
+  if(!r2.ok) throw new Error("ArcGIS query failed: " + r2.status);
+  const data = await r2.json();
+  return esriToGeoJSON(data);
+}
+
+function esriToGeoJSON(esri){
+  const feats = (esri.features || []).map((f, idx) => {
+    const props = f.attributes || {};
+    const g = f.geometry || {};
+    // support polygon rings
+    if(g.rings){
+      // rings: [ [ [x,y], ... ], ... ]
+      return {
+        type:"Feature",
+        properties: props,
+        geometry: { type:"Polygon", coordinates: g.rings.map(r => r.map(pt => [pt[0], pt[1]])) }
+      };
+    }
+    // fallback point
+    if(typeof g.x === "number" && typeof g.y === "number"){
+      return {
+        type:"Feature",
+        properties: props,
+        geometry: { type:"Point", coordinates: [g.x, g.y] }
+      };
+    }
+    return null;
+  }).filter(Boolean);
+
+  return { type:"FeatureCollection", features: feats };
+}
+
+// helper: best-guess name fields
+function pickName(props, candidates){
+  for(const c of candidates){
+    if(props && props[c] != null && String(props[c]).trim() !== "") return String(props[c]).trim();
+  }
+  // try case-insensitive
+  const keys = props ? Object.keys(props) : [];
+  for(const cand of candidates){
+    const k = keys.find(x => x.toLowerCase() === cand.toLowerCase());
+    if(k && props[k] != null) return String(props[k]).trim();
+  }
+  return null;
+}
+
+// We define our focus envelope (rechtsrheinisch Deutz–Mülheim–Kalk inkl. Arena)
+const focusEnv = {
+  xmin: 6.965, ymin: 50.925,
+  xmax: 7.060, ymax: 50.985
+};
+
+// Für Mülheim-Fokus (Stadtbezirk Mülheim + angrenzend)
+const muelheimEnv = {
+  xmin: 6.985, ymin: 50.940,
+  xmax: 7.055, ymax: 50.985
+};
+
+// Layers
+let stadtteileLayer = null;
+let stadtviertelLayer = null;
+
+// Load real boundaries
+async function loadBoundaries(){
+  setStatus("<b>Status:</b> Lade Stadtteile…");
+
+  // Stadtteile (MapServer/3) – nur rechtsrheinische Region (Envelope)
+  const stParams = {
+    where: "1=1",
+    outFields: "*",
+    returnGeometry: "true",
+    outSR: "4326",
+    inSR: "4326",
+    geometry: `${focusEnv.xmin},${focusEnv.ymin},${focusEnv.xmax},${focusEnv.ymax}`,
+    geometryType: "esriGeometryEnvelope",
+    spatialRel: "esriSpatialRelIntersects",
+    resultRecordCount: "2000"
+  };
+
+  const st = await arcgisQuery(3, stParams);
+
+  // Stadtviertel (MapServer/1) – Mülheim-Umfeld (Envelope)
+  setStatus("<b>Status:</b> Lade Stadtviertel (Mülheim-Fokus)…");
+  const svParams = {
+    where: "1=1",
+    outFields: "*",
+    returnGeometry: "true",
+    outSR: "4326",
+    inSR: "4326",
+    geometry: `${muelheimEnv.xmin},${muelheimEnv.ymin},${muelheimEnv.xmax},${muelheimEnv.ymax}`,
+    geometryType: "esriGeometryEnvelope",
+    spatialRel: "esriSpatialRelIntersects",
+    resultRecordCount: "5000"
+  };
+  const sv = await arcgisQuery(1, svParams);
+
+  // Cleanup existing
+  if(stadtteileLayer) map.removeLayer(stadtteileLayer);
+  if(stadtviertelLayer) map.removeLayer(stadtviertelLayer);
+
+  // Build Stadtteile layer (context)
+  st.features.forEach(ft => {
+    const nm = pickName(ft.properties, ["STADTTEIL","NAME","Name","stadtteil"]);
+    ft.properties.__title = nm || "Stadtteil";
+    ft.properties.__key = "ST:" + (nm || ft.properties.OBJECTID || Math.random());
+    ft.properties.__important = false;
+    ft.properties.__special = false;
+  });
+
+  stadtteileLayer = L.geoJSON(st, {
+    style: (feature) => {
+      const base = styleForFeature(feature);
+      // Stadtteile eher transparent
+      base.fillOpacity = (saved[feature.properties.__key] ? base.fillOpacity : 0.10);
+      base.weight = 2;
+      return base;
+    },
+    onEachFeature: (feature, layer) => {
+      const key = feature.properties.__key;
+      const title = feature.properties.__title;
+      layer.bindPopup(popupHTML(key, title), {maxWidth: 280});
+      layer.on('click', () => layer.openPopup());
+      layerByKey[key] = layer;
+      layer.__important = false;
+      layer.__special = false;
+    }
+  }).addTo(map);
+
+  // Build Stadtviertel layer (Mülheim-Fokus) – dicker / wichtiger
+  sv.features.forEach(ft => {
+    const nm = pickName(ft.properties, ["STADTVIERTEL","NAME","Name","stadtviertel","STV","BEZEICHNUNG"]);
+    // Zusätzlich versuchen wir Stadtteil / Bezirk mitzunehmen (damit Mülheim klar wird)
+    const stnm = pickName(ft.properties, ["STADTTEIL","STADTTEILNAME","stadtteil"]);
+    const bznm = pickName(ft.properties, ["STADTBEZIRK","BEZIRK","stadtbezirk"]);
+    const title = nm ? nm : (stnm ? stnm : "Stadtviertel");
+    const key = "SV:" + (nm || ft.properties.OBJECTID || Math.random());
+    ft.properties.__title = title;
+    ft.properties.__key = key;
+    // Wichtigkeitslogik: wenn Stadtbezirk oder Stadtteil "Mülheim" ist, als important
+    const tag = (stnm || "") + " " + (bznm || "") + " " + (nm || "");
+    ft.properties.__important = /mülheim/i.test(tag);
+    ft.properties.__special = false;
+  });
+
+  stadtviertelLayer = L.geoJSON(sv, {
+    style: (feature) => {
+      const s = styleForFeature(feature);
+      // Stadtviertel klar sichtbar
+      s.fillOpacity = (saved[feature.properties.__key] ? s.fillOpacity : 0.14);
+      s.weight = feature.properties.__important ? 3 : 2;
+      return s;
+    },
+    onEachFeature: (feature, layer) => {
+      const key = feature.properties.__key;
+      const title = feature.properties.__title;
+      layer.bindPopup(popupHTML(key, title), {maxWidth: 300});
+      layer.on('click', () => layer.openPopup());
+      layerByKey[key] = layer;
+      layer.__important = !!feature.properties.__important;
+      layer.__special = false;
+    }
+  }).addTo(map);
+
+  // Spezial-Standorte als "eigene Kacheln": kleine Kreise (realer Standort, eigenständige Auswahl)
+  addSpecial("POI: Lanxess Arena", [50.9386, 6.9822]);
+  addSpecial("POI: Carlswerk", [50.9546, 7.0149]);
+
+  // Fit bounds (so, dass Deutz + Arena + Mülheim drin sind)
+  const b = L.latLngBounds([[focusEnv.ymin, focusEnv.xmin],[focusEnv.ymax, focusEnv.xmax]]);
+  map.fitBounds(b, {padding:[20,20]});
+
+  setStatus("<b>Status:</b> Grenzen geladen. Tipp: Klick auf Stadtviertel in Mülheim für feinere Aufteilung.");
+}
+
+// Special “tile” around POI (circle buffer)
+function addSpecial(title, latlng){
+  const key = "POI:" + title;
+  const role = saved[key];
+  const fillColor = (role && roleColors[role]) ? roleColors[role] : "white";
+  const fillOpacity = (role && roleColors[role]) ? 0.70 : 0.18;
+
+  const circle = L.circle(latlng, {
+    radius: 180, // ~200m “Kachel” um den Standort
+    color: "#111",
+    weight: 5,
+    fillColor,
+    fillOpacity
+  }).addTo(map);
+
+  circle.__special = true;
+  circle.__important = true;
+  layerByKey[key] = circle;
+  circle.bindPopup(popupHTML(key, title + " (Spezial)"), {maxWidth: 280});
+  circle.on('click', () => circle.openPopup());
+}
 
 // Tools
 const tools = L.control({position:'topright'});
 tools.onAdd = function() {
-  const div = L.DomUtil.create('div', 'leaflet-bar');
-  div.style.background = 'rgba(255,255,255,0.92)';
-  div.style.padding = '8px';
-  div.style.borderRadius = '10px';
-  div.style.border = '1px solid #ddd';
-  div.style.boxShadow = '0 10px 26px rgba(0,0,0,.08)';
-  div.style.minWidth = '170px';
+  const div = L.DomUtil.create('div', 'statusBox');
+  div.style.minWidth = '180px';
   div.innerHTML = `
-    <div style="font-size:12px; color:#333; margin-bottom:6px;"><b>Tools</b></div>
-    <button id="btnResetView" style="width:100%; padding:8px 10px; border:1px solid #ddd; border-radius:10px; background:#fff; font-size:13px; margin:4px 0; cursor:pointer;">Ansicht zurück</button>
-    <button id="btnResetColors" style="width:100%; padding:8px 10px; border:1px solid #ddd; border-radius:10px; background:#fff; font-size:13px; margin:4px 0; cursor:pointer;">Farben zurücksetzen</button>
-    <button id="btnExport" style="width:100%; padding:8px 10px; border:1px solid #ddd; border-radius:10px; background:#fff; font-size:13px; margin:4px 0; cursor:pointer;">Export (Text)</button>
-    <div style="margin-top:6px; font-size:11px; color:#666; line-height:1.25;">
-      Klick auf Kachel → Rolle wählen. Speicherung pro Gerät.
+    <b>Tools</b><br>
+    <button id="btnReload" style="width:100%; margin-top:6px; padding:8px 10px; border:1px solid #ddd; border-radius:10px; background:#fff; font-size:13px; cursor:pointer;">Grenzen neu laden</button>
+    <button id="btnResetColors" style="width:100%; margin-top:6px; padding:8px 10px; border:1px solid #ddd; border-radius:10px; background:#fff; font-size:13px; cursor:pointer;">Farben zurücksetzen</button>
+    <button id="btnExport" style="width:100%; margin-top:6px; padding:8px 10px; border:1px solid #ddd; border-radius:10px; background:#fff; font-size:13px; cursor:pointer;">Export (Text)</button>
+    <div style="margin-top:8px; font-size:11px; color:#666;">
+      Speicherung pro Gerät (localStorage). Für Unterricht: QR-Code auf GitHub Pages.
     </div>
   `;
   L.DomEvent.disableClickPropagation(div);
@@ -175,21 +377,32 @@ tools.onAdd = function() {
 };
 tools.addTo(map);
 
-function resetView(){ map.fitBounds(focusBounds, {padding:[20,20]}); }
 function resetColors(){
   saved = {}; save();
-  Object.keys(layers).forEach(n => layers[n].setStyle(styleFor(n, layers[n].__important, layers[n].__special)));
+  Object.keys(layerByKey).forEach(key => {
+    const lyr = layerByKey[key];
+    if(lyr.setStyle){
+      lyr.setStyle(styleForFeature({properties:{__key:key, __important:lyr.__important, __special:lyr.__special}}));
+    }
+  });
 }
 function exportText(){
-  const out = Object.keys(layers).sort().map(n => ({gebiet:n, rolle: saved[n] || ""}));
+  const keys = Object.keys(layerByKey).sort();
+  const out = keys.map(k => ({gebiet: k.replace(/^ST:/,"").replace(/^SV:/,"").replace(/^POI:/,""), rolle: saved[k] || ""}));
   const txt = JSON.stringify(out, null, 2);
   prompt("Kopiere den Export-Text (Copy):", txt);
 }
 
 document.addEventListener('click', (e) => {
-  if(e.target && e.target.id === 'btnResetView') resetView();
+  if(e.target && e.target.id === 'btnReload') loadBoundaries().catch(err => setStatus("<b>Status:</b> Fehler: " + err.message));
   if(e.target && e.target.id === 'btnResetColors') resetColors();
   if(e.target && e.target.id === 'btnExport') exportText();
+});
+
+// Start
+loadBoundaries().catch(err => {
+  console.error(err);
+  setStatus("<b>Status:</b> Fehler beim Laden der Grenzen.<br><span style='color:#b00'>"+ err.message +"</span><br>Hinweis: Wenn Geoportal blockiert ist, funktioniert es nicht.");
 });
 </script>
 </body>
