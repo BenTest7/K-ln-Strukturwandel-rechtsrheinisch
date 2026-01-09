@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Strukturwandel Köln – Rollenkarte (reale Grenzen, rechtsrheinisch, SW-Basemap)</title>
+<title>Strukturwandel Köln – Rollenkarte (Route-Fokus, SW-Straßenkarte, reale Grenzen)</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
@@ -13,10 +13,9 @@
   header p { margin:0; font-size:12px; color:#444; line-height:1.25; }
   #map { height: calc(100% - 82px); width:100%; }
 
-  /* Schwarz/Weiß-Look für Kacheln */
-  .leaflet-tile { filter: grayscale(100%) contrast(120%) brightness(108%); }
+  /* Schwarz/Weiß-Look für Kacheln (Straßen bleiben sichtbar) */
+  .leaflet-tile { filter: grayscale(100%) contrast(110%) brightness(102%); }
 
-  /* Popup Buttons */
   .roleBtn{
     display:block; width:100%;
     margin:6px 0; padding:10px 12px;
@@ -25,7 +24,6 @@
   }
   .roleBtn:active { transform: translateY(1px); }
 
-  /* kleines Statusfeld */
   .statusBox{
     background: rgba(255,255,255,.92);
     border: 1px solid #ddd;
@@ -41,8 +39,8 @@
 <header>
   <h1>Strukturwandel Köln (rechtsrheinisch) – Rollenkarte</h1>
   <p>
-    Hintergrund: <b>Schwarz/Weiß</b>. Klick auf eine Fläche → Rolle wählen: Industrie <b>(blau)</b>, Start-ups <b>(gelb)</b>, Wohnen <b>(rot)</b>, Freizeit/Kultur <b>(grün)</b>.
-    <br>Gesamtbereich: rechtsrheinisch (südlichster Rand: <b>Deutz</b>).
+    Basiskarte: <b>Straßenkarte in Schwarz/Weiß</b>. Klick auf eine Fläche → Rolle wählen: Industrie <b>(blau)</b>, Start-ups <b>(gelb)</b>, Wohnen <b>(rot)</b>, Freizeit/Kultur <b>(grün)</b>.
+    <br>Fokus: nur die Gebiete der Route (Deutz ↔ Messe/Arena/Rheinpark ↔ Mülheim).
   </p>
 </header>
 
@@ -50,25 +48,25 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-/* =========================================================
-   Datenquellen (Geoportal Stadt Köln / ArcGIS REST)
+/* Datenquellen (Geoportal Stadt Köln / ArcGIS REST)
    - Stadtteile:   Basiskarten/kgg/MapServer/3
    - Stadtviertel: Basiskarten/kgg/MapServer/1
-   ========================================================= */
+*/
 
-const map = L.map('map', { zoomControl: true }).setView([50.947, 7.005], 14);
+const map = L.map('map', { zoomControl: true }).setView([50.949, 7.005], 13);
 
-// Basemap (SW)
-const carto = L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png', {
-  subdomains: 'abcd', maxZoom: 20,
-  attribution: 'Map tiles by Carto (CC BY 3.0). Data © OpenStreetMap contributors (ODbL).'
-}).addTo(map);
-
+// Straßenkarte (OSM) als Default (damit Straßen/Orientierung deutlich sind)
 const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19, attribution: '© OpenStreetMap-Mitwirkende'
+}).addTo(map);
+
+// optional: Carto Light als Alternative
+const carto = L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png', {
+  subdomains:'abcd', maxZoom: 20,
+  attribution: 'Map tiles by Carto (CC BY 3.0). Data © OpenStreetMap contributors (ODbL).'
 });
 
-L.control.layers({"Carto (SW)": carto, "OSM (SW)": osm}, null, {collapsed:true}).addTo(map);
+L.control.layers({"OSM Straßenkarte (SW)": osm, "Carto Light (SW)": carto}, null, {collapsed:true}).addTo(map);
 
 // Rollen / Farben
 const roleColors = {
@@ -78,15 +76,14 @@ const roleColors = {
   "Freizeit/Kultur": "green"
 };
 
-const STORAGE_KEY = "koeln_roles_real_rr_v2";
+const STORAGE_KEY = "koeln_roles_route_v3";
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch(e) { saved = {}; }
 function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(saved)); }
 
-function popupHTML(key, ortsname){
-  // Popup soll nur den Ortsnamen zeigen (keine Hinweise/Interpretation)
+function popupHTML(key, name){
   return `
-    <b>${ortsname}</b><br>
+    <b>${name}</b><br>
     <button class="roleBtn" onclick="setRole('${key}','Industrie')">Industrie (blau)</button>
     <button class="roleBtn" onclick="setRole('${key}','Start-ups')">Start-ups (gelb)</button>
     <button class="roleBtn" onclick="setRole('${key}','Wohnen')">Wohnen (rot)</button>
@@ -95,32 +92,29 @@ function popupHTML(key, ortsname){
   `;
 }
 
-// Layer registry
 const layerByKey = {};
 
 window.setRole = function(key, role){
   saved[key] = role; save();
-  if(layerByKey[key] && layerByKey[key].setStyle){
-    layerByKey[key].setStyle(styleForKey(key, layerByKey[key].__kind));
-  }
-  if(layerByKey[key]) layerByKey[key].closePopup();
+  const lyr = layerByKey[key];
+  if(lyr && lyr.setStyle) lyr.setStyle(styleForKey(key, lyr.__kind));
+  if(lyr) lyr.closePopup();
 };
 window.clearRole = function(key){
   delete saved[key]; save();
-  if(layerByKey[key] && layerByKey[key].setStyle){
-    layerByKey[key].setStyle(styleForKey(key, layerByKey[key].__kind));
-  }
-  if(layerByKey[key]) layerByKey[key].closePopup();
+  const lyr = layerByKey[key];
+  if(lyr && lyr.setStyle) lyr.setStyle(styleForKey(key, lyr.__kind));
+  if(lyr) lyr.closePopup();
 };
 
 function styleForKey(key, kind){
   const role = saved[key];
   const fillColor = (role && roleColors[role]) ? roleColors[role] : "white";
   const hasRole = !!(role && roleColors[role]);
-  // Stadtviertel etwas sichtbarer als Stadtteile, POIs am deutlichsten
-  let baseOpacity = (kind === "SV") ? 0.18 : 0.10;
-  if(kind === "POI") baseOpacity = 0.14;
-  const fillOpacity = hasRole ? 0.60 : baseOpacity;
+  // Stadtviertel etwas deutlicher, Stadtteile sehr transparent, POIs deutlich umrissen
+  let baseOpacity = (kind === "SV") ? 0.16 : 0.08;
+  if(kind === "POI") baseOpacity = 0.10;
+  const fillOpacity = hasRole ? 0.58 : baseOpacity;
   const weight = (kind === "POI") ? 5 : (kind === "SV" ? 2.5 : 2);
   return { color:"#111", weight, fillColor, fillOpacity };
 }
@@ -137,14 +131,12 @@ statusCtl.onAdd = function(){
 statusCtl.addTo(map);
 function setStatus(html){ if(statusEl) statusEl.innerHTML = html; }
 
-/* =========================================================
-   ArcGIS REST Fetch
-   ========================================================= */
+// ArcGIS fetch
 async function arcgisQuery(layerId, params){
   const base = `https://geoportal.stadt-koeln.de/arcgis/rest/services/Basiskarten/kgg/MapServer/${layerId}/query`;
   const p = new URLSearchParams(params);
 
-  // Try geojson first
+  // try geojson
   let url = base + "?" + p.toString() + "&f=geojson";
   try{
     const r = await fetch(url);
@@ -154,7 +146,7 @@ async function arcgisQuery(layerId, params){
     }
   } catch(e){}
 
-  // Fallback pjson
+  // fallback pjson
   url = base + "?" + p.toString() + "&f=pjson";
   const r2 = await fetch(url);
   if(!r2.ok) throw new Error("ArcGIS query failed: " + r2.status);
@@ -190,33 +182,27 @@ function pickName(props, candidates){
   return null;
 }
 
-// Very lightweight "centroid" from first ring average (lon/lat)
 function approxCentroidLonLat(feature){
   try{
     const ring = feature.geometry.coordinates[0];
     let sx=0, sy=0, n=0;
-    for(const pt of ring){
-      sx += pt[0]; sy += pt[1]; n++;
-    }
+    for(const pt of ring){ sx += pt[0]; sy += pt[1]; n++; }
     return {lon: sx/n, lat: sy/n};
   } catch(e){
     return null;
   }
 }
 
-/* =========================================================
-   Gesamtbereich: nur rechtsrheinisch, südlich Deutz
-   (Envelope + rechtsrheinischer Filter per centroid lon)
-   ========================================================= */
+// ROUTE-FOKUS Envelope: Deutz (südlichster) bis Mülheim, nicht weiter nördlich
+// (diese Werte kannst du später noch enger/weiter setzen)
 const env = {
-  xmin: 6.975, ymin: 50.925,  // südlich: Deutz
-  xmax: 7.055, ymax: 50.975   // nicht viel nördlicher als Mülheim
+  xmin: 6.975, ymin: 50.928,  // Deutz/Arena
+  xmax: 7.040, ymax: 50.968   // Mülheim / Carlswerk / Schanzenstraße
 };
 
-// "rechtsrheinisch" Filter: alles östlich einer groben Rhein-Linie (hier über Lon-Schwellwert)
+// rechtsrheinisch-Filter (grob über centroid lon)
 const RIGHT_BANK_LON_MIN = 6.975;
 
-// Layer refs
 let stLayer=null, svLayer=null;
 
 async function loadBoundaries(){
@@ -238,7 +224,6 @@ async function loadBoundaries(){
   setStatus("<b>Status:</b> Lade Stadtviertel…");
   const sv = await arcgisQuery(1, qCommon); // Stadtviertel
 
-  // Filter auf rechtsrheinisch (über centroid)
   st.features = st.features.filter(f => {
     const c = approxCentroidLonLat(f);
     return c && c.lon >= RIGHT_BANK_LON_MIN;
@@ -248,11 +233,10 @@ async function loadBoundaries(){
     return c && c.lon >= RIGHT_BANK_LON_MIN;
   });
 
-  // Remove existing
   if(stLayer) map.removeLayer(stLayer);
   if(svLayer) map.removeLayer(svLayer);
 
-  // Stadtteile (Kontext) – sehr transparent, damit Basemap sichtbar bleibt
+  // Stadtteile (Kontext)
   st.features.forEach(ft => {
     const nm = pickName(ft.properties, ["STADTTEIL","NAME","Name","stadtteil"]) || "Ort";
     ft.properties.__name = nm;
@@ -272,7 +256,7 @@ async function loadBoundaries(){
     }
   }).addTo(map);
 
-  // Stadtviertel – deutlicher sichtbar; wichtig für "mehrere kleine Teile" in Mülheim, ohne es zu labeln
+  // Stadtviertel (feinere Grenzen sichtbar)
   sv.features.forEach(ft => {
     const nm = pickName(ft.properties, ["STADTVIERTEL","NAME","Name","stadtviertel","STV","BEZEICHNUNG"]) || "Ort";
     ft.properties.__name = nm;
@@ -292,20 +276,22 @@ async function loadBoundaries(){
     }
   }).addTo(map);
 
-  // Spezial-Standorte als eigene "Kacheln" (Punktpuffer) – Name pur
-  addPOI("Lanxess Arena", [50.9386, 6.9822]);
-  addPOI("Carlswerk",     [50.9546, 7.0149]);
+  // Spezialbezirke (als eigene „Kacheln“/Flächen um wichtige Punkte)
+  addPOI("Lanxess Arena", [50.9386, 6.9822], 180);
+  addPOI("koelnmesse",    [50.9446, 6.9836], 220);      // Messegelände (ungefähr)
+  addPOI("Bhf Deutz",     [50.9409, 6.9827], 170);      // Bahnhof Köln Messe/Deutz
+  addPOI("Carlswerk",     [50.9546, 7.0149], 180);
 
-  // Fit bounds nur rechtsrheinisch
-  map.fitBounds(L.latLngBounds([[env.ymin, env.xmin],[env.ymax, env.xmax]]), {padding:[20,20]});
+  // Maßstab kleiner: etwas weiter raus als vorher
+  map.fitBounds(L.latLngBounds([[env.ymin, env.xmin],[env.ymax, env.xmax]]), {padding:[30,30]});
+  map.setZoom(Math.max(12, map.getZoom()-1)); // einen Tick weiter raus
 
   setStatus("<b>Status:</b> Fertig. Tipp: Flächen antippen → Rolle wählen.");
 }
 
-// POI circle "tile"
-function addPOI(name, latlng){
+function addPOI(name, latlng, radius){
   const key = "POI:" + name;
-  const circle = L.circle(latlng, styleForKey(key, "POI"));
+  const circle = L.circle(latlng, { radius, ...styleForKey(key, "POI") });
   circle.__kind = "POI";
   layerByKey[key] = circle;
   circle.bindPopup(popupHTML(key, name), {maxWidth: 280});
