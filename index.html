@@ -1,89 +1,117 @@
-
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="de">
 <head>
-<meta charset="utf-8" />
-<title>Strukturwandel Köln – Interaktive Karte</title>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<title>Köln Deutz–Mülheim – stabile Karte (Leaflet, garantiert sichtbar)</title>
+
+<link rel="stylesheet"
+ href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
-  html, body { height: 100%; margin: 0; padding: 0; }
-  #map { height: 100vh; width: 100%; }
-  h2 { text-align: center; font-family: Arial, sans-serif; margin: 5px 0; }
-  p { text-align: center; font-family: Arial, sans-serif; margin: 5px 0 10px 0; }
-  button {
-    display: block;
-    width: 100%;
-    margin: 2px 0;
-    padding: 6px 12px;
-    font-size: 14px;
-    cursor: pointer;
-  }
+html, body { height:100%; margin:0; font-family: Arial, sans-serif; }
+header { padding:10px 12px; border-bottom:1px solid #ddd; }
+header h1 { font-size:16px; margin:0 0 6px; }
+header p { margin:0; font-size:12px; color:#444; }
+#map { height: calc(100% - 72px); width:100%; }
+
+.roleBtn {
+  display:block; width:100%; margin:6px 0;
+  padding:8px 10px; font-size:14px;
+}
 </style>
 </head>
 <body>
 
-<h2>Interaktive Karte: Strukturwandel Köln rechtsrheinisch</h2>
-<p>Tippe auf ein Gebiet, wähle die aktuelle Hauptrolle – die Farbe wird automatisch angepasst.</p>
+<header>
+<h1>Strukturwandel Köln (Deutz–Mülheim)</h1>
+<p>Tippe ein Viertel an → Rolle auswählen (Popup).<br>
+Industrie <b>blau</b>, Start-ups <b>gelb</b>, Wohnen <b>rot</b>, Freizeit <b>grün</b>.</p>
+</header>
 
 <div id="map"></div>
 
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+// ===== 1. Karte (OSM-Kacheln) =====
+const map = L.map('map').setView([50.945, 6.995], 13);
 
-// Karte initialisieren, Zoom auf Mülheim/Deutz
-var map = L.map('map').setView([50.945, 6.995], 15);
-
-// Hintergrundkarte OpenStreetMap
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
   attribution: '© OpenStreetMap-Mitwirkende'
 }).addTo(map);
 
-// Farben für Rollen
-var roleColors = {
-    "Industrie": "blue",
-    "Start-ups / Dienstleistungen": "yellow",
-    "Wohnen / Gentrifizierung": "red",
-    "Freizeit / Kultur": "green"
+// ===== 2. Rollenfarben =====
+const colors = {
+  "Industrie": "blue",
+  "Start-ups": "yellow",
+  "Wohnen": "red",
+  "Freizeit": "green"
 };
 
-// Gebiete (Polygone) mit Koordinaten
-var areas = [
-  {name: "Deutz", coords:[[50.9407,6.995],[50.9407,6.985],[50.933,6.985],[50.933,6.995]]},
-  {name: "Carlswerk", coords:[[50.956,7.013],[50.956,7.021],[50.950,7.021],[50.950,7.013]]},
-  {name: "Schanzenstraße", coords:[[50.955,7.008],[50.955,7.012],[50.952,7.012],[50.952,7.008]]},
-  {name: "Messe/Lanxess-Arena", coords:[[50.940,6.975],[50.940,6.985],[50.935,6.985],[50.935,6.975]]}
+// ===== 3. Viertel (vereinfachte, aber echte Lage) =====
+const districts = [
+  {
+    name: "Deutz",
+    coords: [
+      [50.937, 6.980],
+      [50.937, 7.005],
+      [50.947, 7.005],
+      [50.947, 6.980]
+    ]
+  },
+  {
+    name: "Mülheim",
+    coords: [
+      [50.950, 7.005],
+      [50.950, 7.040],
+      [50.965, 7.040],
+      [50.965, 7.005]
+    ]
+  },
+  {
+    name: "Kalk",
+    coords: [
+      [50.935, 7.010],
+      [50.935, 7.045],
+      [50.948, 7.045],
+      [50.948, 7.010]
+    ]
+  }
 ];
 
-// Objekt zum Speichern der Polygon-Layer
-var polygonLayers = {};
+const layers = {};
 
-// Funktion Pop-up erstellen
-function createPopup(layer) {
-    var popupContent = "<b>"+layer.feature.properties.name+"</b><br/>Wähle die Hauptrolle:<br/>";
-    for (var role in roleColors) {
-        popupContent += "<button onclick='setRole(""+layer.feature.properties.name+"",""+role+"")'>"+role+"</button>";
-    }
-    layer.bindPopup(popupContent, {autoClose: true});
+function popupHTML(name){
+  return `
+    <b>${name}</b><br>
+    <button class="roleBtn" onclick="setRole('${name}','Industrie')">Industrie</button>
+    <button class="roleBtn" onclick="setRole('${name}','Start-ups')">Start-ups</button>
+    <button class="roleBtn" onclick="setRole('${name}','Wohnen')">Wohnen</button>
+    <button class="roleBtn" onclick="setRole('${name}','Freizeit')">Freizeit</button>
+    <button class="roleBtn" onclick="clearRole('${name}')">Zurücksetzen</button>
+  `;
 }
 
-// Funktion zum Setzen der Rolle (Farbe)
-function setRole(areaName, role) {
-    var layer = polygonLayers[areaName];
-    if(layer) {
-        layer.setStyle({fillColor: roleColors[role], fillOpacity:0.6});
-        layer.closePopup(); // Pop-up automatisch schließen
-    }
-}
+window.setRole = function(name, role){
+  layers[name].setStyle({ fillColor: colors[role], fillOpacity:0.6 });
+};
 
-// Polygone erzeugen
-areas.forEach(function(a){
-    var polygon = L.polygon(a.coords, {color:"black", fillColor:"white", fillOpacity:0.4}).addTo(map);
-    polygon.feature = {properties:{name:a.name}};
-    createPopup(polygon);
-    polygonLayers[a.name] = polygon;
+window.clearRole = function(name){
+  layers[name].setStyle({ fillColor: "white", fillOpacity:0.2 });
+};
+
+districts.forEach(d => {
+  const poly = L.polygon(d.coords, {
+    color: "#111",
+    weight: 2,
+    fillColor: "white",
+    fillOpacity: 0.2
+  }).addTo(map);
+
+  poly.bindPopup(popupHTML(d.name));
+  layers[d.name] = poly;
 });
-
 </script>
+
 </body>
 </html>
