@@ -8,11 +8,10 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
   html, body { height:100%; margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-body { display:flex; flex-direction:column; }
-header { padding:10px 12px; border-bottom:1px solid #ddd; background:#fff; flex:0 0 auto; }
-header h1 { font-size:16px; margin:0 0 6px; }
-header p { margin:0; font-size:12px; color:#444; line-height:1.25; }
-#map { flex:1 1 auto; width:100%; min-height: 300px; }
+  header { padding:10px 12px; border-bottom:1px solid #ddd; background:#fff; }
+  header h1 { font-size:16px; margin:0 0 6px; }
+  header p { margin:0; font-size:12px; color:#444; line-height:1.25; }
+  #map { height: calc(100% - 82px); width:100%; }
 
   /* SW + sehr deutlich */
   .leaflet-tile { filter: grayscale(100%) contrast(220%) brightness(92%); }
@@ -99,8 +98,7 @@ const roleColors = {
   "Industrie": "blue",
   "Start-ups": "yellow",
   "Wohnen": "red",
-  "Freizeit/Kultur": "lightgreen",
-  "Einzelhandel/Gewerbe": "hotpink"
+  "Freizeit/Kultur": "green"
 };
 
 const STORAGE_KEY = "koeln_roles_deutz_muelheim_v6";
@@ -120,8 +118,7 @@ function popupHTML(key, name, allowDelete=false){
     <button class="roleBtn" onclick="setRole('${key}','Industrie')">Industrie (blau)</button>
     <button class="roleBtn" onclick="setRole('${key}','Start-ups')">Start-ups (gelb)</button>
     <button class="roleBtn" onclick="setRole('${key}','Wohnen')">Wohnen (rot)</button>
-    <button class="roleBtn" onclick="setRole('${key}','Freizeit/Kultur')">Freizeit/Kultur (hellgrün)</button>
-    <button class="roleBtn" onclick="setRole('${key}','Einzelhandel/Gewerbe')">Einzelhandel/Gewerbe (pink)</button>
+    <button class="roleBtn" onclick="setRole('${key}','Freizeit/Kultur')">Freizeit/Kultur (grün)</button>
     <button class="roleBtn" onclick="clearRole('${key}')">Keine Zuordnung</button>
     ${allowDelete ? `<button class="roleBtn dangerBtn" onclick="deleteUserRect('${key}')">Rechteck löschen</button>` : ``}
   `;
@@ -366,7 +363,7 @@ async function loadBoundaries(){
       layer.__kind = "ST";
       layerByKey[key] = layer;
       layer.bindPopup(popupHTML(key, name), {maxWidth: 320});
-      layer.on('click', () => { if(!drawMode) layer.openPopup(); });
+      layer.on('click', () => layer.openPopup());
       addPermanentLabel(layer, name, "districtLabel");
     }
   }).addTo(map);
@@ -394,7 +391,7 @@ async function loadBoundaries(){
       layer.__kind = "SV";
       layerByKey[key] = layer;
       layer.bindPopup(popupHTML(key, name), {maxWidth: 320});
-      layer.on('click', () => { if(!drawMode) layer.openPopup(); });
+      layer.on('click', () => layer.openPopup());
       addPermanentLabel(layer, name, "districtLabel");
     }
   }).addTo(map);
@@ -421,7 +418,7 @@ function addPOI(name, latlng, radius){
   circle.__kind = "POI";
   layerByKey[key] = circle;
   circle.bindPopup(popupHTML(key, name), {maxWidth: 300});
-  circle.on('click', () => { if(!drawMode) circle.openPopup(); });
+  circle.on('click', () => circle.openPopup());
   circle.addTo(map);
   circle.bindTooltip(name, { permanent:true, direction:'top', offset:[0,-8], className:'poiLabel', opacity:1.0 });
 }
@@ -467,7 +464,7 @@ function updateMicroTiles(){
         poly.__kind = "SV";
         layerByKey[microKey] = poly;
         poly.bindPopup(popupHTML(microKey, microName), {maxWidth: 320});
-        poly.on('click', () => { if(!drawMode) poly.openPopup(); });
+        poly.on('click', () => poly.openPopup());
         microGroup.addLayer(poly);
       }
     }
@@ -481,52 +478,18 @@ let drawMode = false;
 let firstCorner = null;
 let previewRect = null;
 
-function updateAddRectButton(){
-  const btn = document.getElementById('btnAddRect');
-  if(!btn) return;
-  if(drawMode){
-    btn.style.background = '#ffe9a8';
-    btn.style.borderColor = '#e0b800';
-    btn.style.fontWeight = '800';
-    btn.textContent = '✓ Rechteckmodus';
-  } else {
-    btn.style.background = '#fff';
-    btn.style.borderColor = '#ddd';
-    btn.style.fontWeight = '600';
-    btn.textContent = '+ Rechteck';
-  }
-}
-
-// enable/disable pointer events on existing vector layers so map clicks always work in draw mode
-function setOtherLayersPointerEvents(enabled){
-  Object.keys(layerByKey).forEach(key => {
-    const lyr = layerByKey[key];
-    // user rectangles should still be non-interactive during draw to avoid stealing clicks too
-    // => disable all vector layers' pointer events while drawing
-    if(lyr && lyr._path){
-      lyr._path.style.pointerEvents = enabled ? 'auto' : 'none';
-    }
-  });
-}
-
 function setDrawMode(on){
   drawMode = on;
   firstCorner = null;
   if(previewRect){ map.removeLayer(previewRect); previewRect=null; }
-
-  // prevent selecting / coloring existing fields while drawing, and allow placing rectangles "on top"
-  setOtherLayersPointerEvents(!on);
-
   if(on){
-    setStatus("<b>Status:</b> Rechteckmodus aktiv. Tippe Ecke 1, dann Ecke 2. (Zum Beenden erneut klicken)");
+    setStatus("<b>Status:</b> Rechteckmodus aktiv. Tippe Ecke 1, dann Ecke 2.");
   } else {
     setStatus("<b>Status:</b> Fertig. Zoom ≥16: Schanzenstraße wird kleinteiliger. Button: Rechteck hinzufügen.");
   }
-  updateAddRectButton();
 }
 
 function keyForUserRect(id){ return "USER:" + id; }
-(id){ return "USER:" + id; }
 
 function addUserRect(bounds){
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2,7);
@@ -555,7 +518,7 @@ function renderUserRects(){
     rect.__kind = "USER";
     layerByKey[key] = rect;
     rect.bindPopup(popupHTML(key, "Eigenes Rechteck", true), {maxWidth: 320});
-    rect.on('click', () => { if(!drawMode) rect.openPopup(); });
+    rect.on('click', () => rect.openPopup());
     userGroup.addLayer(rect);
 
     // kleines dauerhaftes "+" Label (damit klar ist: von SuS hinzugefügt)
@@ -599,7 +562,6 @@ const tools = L.control({position:'bottomleft'});
 tools.onAdd = function() {
   const div = L.DomUtil.create('div', 'statusBox');
   div.style.minWidth = '140px';
-  div.style.marginBottom = '70px';
   div.innerHTML = `
     <b>Feld hinzufügen</b><br>
     <button id="btnAddRect" style="width:100%; margin-top:6px; padding:6px 8px; border:1px solid #ddd; border-radius:8px; background:#fff; font-size:12px; cursor:pointer;">+ Rechteck</button>
@@ -623,7 +585,7 @@ function exportText(){
 }
 
 document.addEventListener('click', (e) => {
-  if(e.target && e.target.id === 'btnAddRect') setDrawMode(!drawMode);
+  if(e.target && e.target.id === 'btnAddRect') setDrawMode(true);
   // removed setDrawMode(false);
   // removed loadBoundaries().catch(err => setStatus("<b>Status:</b> Fehler: " + err.message));
   // removed resetColors();
@@ -633,8 +595,6 @@ document.addEventListener('click', (e) => {
 map.on('zoomend', updateMicroTiles);
 
 // Start
-updateAddRectButton();
-setTimeout(() => { try { map.invalidateSize(); } catch(e){} }, 50);
 loadBoundaries().catch(err => {
   console.error(err);
   setStatus("<b>Status:</b> Fehler beim Laden der Grenzen.<br><span style='color:#b00'>"+ err.message +"</span>");
