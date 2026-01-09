@@ -2,136 +2,195 @@
 <html lang="de">
 <head>
 <meta charset="utf-8" />
-<title>Strukturwandel Köln – Stadtteile (reale Grenzen) + Rollen (Popup)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<title>Strukturwandel Köln – interaktive Rollenkarte (Mülheim-Fokus, SW-Hintergrund)</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
-  html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-  header { padding: 10px 12px; border-bottom: 1px solid #ddd; }
-  header h1 { font-size: 16px; margin: 0 0 6px; }
-  header p { margin: 0; font-size: 12px; color: #444; line-height: 1.25; }
-  #map { height: calc(100% - 76px); width: 100%; }
-  .role-btn {
+  html, body { height:100%; margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+  header { padding:10px 12px; border-bottom:1px solid #ddd; background:#fff; }
+  header h1 { font-size:16px; margin:0 0 6px; }
+  header p { margin:0; font-size:12px; color:#444; line-height:1.25; }
+  #map { height: calc(100% - 78px); width:100%; }
+
+  /* Schwarz/Weiß-Look für Kacheln */
+  .leaflet-tile { filter: grayscale(100%) contrast(115%) brightness(105%); }
+
+  .roleBtn{
     display:block; width:100%;
-    margin: 6px 0; padding: 10px 12px;
-    font-size: 14px; border-radius: 10px;
-    border: 1px solid #ddd; background: #f7f7f7;
+    margin:6px 0; padding:10px 12px;
+    font-size:14px; border-radius:10px;
+    border:1px solid #ddd; background:#f7f7f7;
   }
-  .role-btn:active { transform: translateY(1px); }
-  .hint { font-size: 12px; color:#333; }
+  .roleBtn:active { transform: translateY(1px); }
+
+  .pill {
+    display:inline-block; padding:2px 8px; border-radius:999px;
+    border:1px solid #ddd; background:#fafafa; font-size:11px; color:#333;
+  }
 </style>
 </head>
 <body>
 <header>
-  <h1>Interaktive Karte: Stadtteile Köln (reale Grenzen) – Hauptakteur einfärben</h1>
+  <h1>Strukturwandel Köln (rechtsrheinisch) – Rollenkarte</h1>
   <p>
-    Tippe auf einen Stadtteil → im Popup Rolle wählen: Industrie <b>(blau)</b>, Start-ups <b>(gelb)</b>, Wohnen <b>(rot)</b>, Freizeit/Kultur <b>(grün)</b>.
-    <br><span class="hint">Hinweis: Kacheln kommen online (OSM). Wenn eure Schule Tile-Server blockt, sag Bescheid – dann stelle ich auf lokale Tiles um.</span>
+    Hintergrund: <b>Schwarz/Weiß</b>. Klick auf eine Kachel → Rolle wählen: Industrie <b>(blau)</b>, Start-ups <b>(gelb)</b>, Wohnen <b>(rot)</b>, Freizeit/Kultur <b>(grün)</b>.
+    <br><span class="pill">Fokus: Mülheim</span> (in mehrere Teilkacheln) · <span class="pill">Spezialkacheln</span>: Lanxess Arena, Carlswerk.
   </p>
 </header>
-<div id="map"></div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<div id="map" aria-label="Interaktive Karte"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-// --- Karte ---
-const map = L.map('map').setView([50.945, 6.995], 13);
+const map = L.map('map', { zoomControl: true }).setView([50.954, 7.010], 14);
 
-// Tiles + Fallback (umschaltbar)
+// Basemap (schwarz/weiß über CSS)
+const cartoPositron = L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png', {
+  subdomains: 'abcd',
+  maxZoom: 20,
+  attribution: 'Map tiles by Carto, under CC BY 3.0. Data by OpenStreetMap, under ODbL.'
+}).addTo(map);
+
 const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
   attribution: '© OpenStreetMap-Mitwirkende'
-}).addTo(map);
-
-const osmDE = L.tileLayer('https://{s}.tile.openstreetmap.de/{z}/{x}/{y}.png', {
-  maxZoom: 19,
-  attribution: '© OpenStreetMap-Mitwirkende'
-});
-
-const osmHOT = L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
-  maxZoom: 19,
-  attribution: '© OpenStreetMap-Mitwirkende, Tiles: HOT'
 });
 
 L.control.layers({
-  "OSM Standard": osm,
-  "OSM DE": osmDE,
-  "OSM Humanitarian": osmHOT
+  "Carto Positron (SW)": cartoPositron,
+  "OSM Standard (SW)": osm
 }, null, {collapsed:true}).addTo(map);
 
-// --- Rollenfarben (wie gewünscht) ---
+// Rollen
 const roleColors = {
   "Industrie": "blue",
-  "Start-ups / Dienstleistungen": "yellow",
-  "Wohnen / Gentrifizierung": "red",
-  "Freizeit / Kultur": "green"
+  "Start-ups": "yellow",
+  "Wohnen": "red",
+  "Freizeit/Kultur": "green"
 };
 
-// --- GeoJSON (reale Grenzen aus Stadt Köln Shapefile, auf 10 Stadtteile gefiltert & vereinfacht) ---
-const districts = {"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {"name": "Humboldt/Gremberg", "nummer": "801", "stbezirk": "Kalk"}, "geometry": {"type": "Polygon", "coordinates": [[[6.994332348097322, 50.93699454007365], [7.014247141505382, 50.92890983393347], [7.033115372444169, 50.9175003698913], [7.030362527850245, 50.91689259733383], [7.029109556431749, 50.91527790512048], [7.028125929362937, 50.914932444475895], [7.024851099134911, 50.91583708090399], [7.01720123958701, 50.914710746570485], [7.014152903422485, 50.91672948646961], [7.012726482064847, 50.91869929048871], [7.0123740354713275, 50.920133887179276], [7.012393285354817, 50.92396702692177], [7.0102736614628425, 50.92469290836187], [7.0080035828330915, 50.9249265745469], [7.0007367614623135, 50.9241463243586], [6.9994225541292465, 50.92367707936234], [6.986953399260136, 50.929088463360905], [6.992006177168055, 50.93428538185582], [6.993390264387547, 50.93697662341943], [6.994332348097322, 50.93699454007365]]]}}, {"type": "Feature", "properties": {"name": "Buchforst", "nummer": "902", "stbezirk": "Mülheim"}, "geometry": {"type": "Polygon", "coordinates": [[[7.0121972248273305, 50.954669435975994], [7.012182217313347, 50.95332148585693], [7.012991382804269, 50.951302129332], [7.016418495633486, 50.94829768758001], [7.001522485640842, 50.947112646661054], [7.001361821821877, 50.94808274537093], [6.998593442136594, 50.94885541059925], [6.995424364400882, 50.949181114002975], [6.997408458715578, 50.95146024524117], [6.99912404970784, 50.95246794898641], [7.000089405274729, 50.95437486675028], [7.0011004439888485, 50.95417245599897], [7.00120575348431, 50.95476710540003], [7.00600244250857, 50.95416912174329], [7.008876521214775, 50.95456567946452], [7.010622402846996, 50.955515413992956], [7.012206231362532, 50.95497688548536], [7.0121972248273305, 50.954669435975994]]]}}, {"type": "Feature", "properties": {"name": "Buchheim", "nummer": "903", "stbezirk": "Mülheim"}, "geometry": {"type": "Polygon", "coordinates": [[[7.028573977931841, 50.972792965017845], [7.029479825213818, 50.97052753958083], [7.0294549119018255, 50.969882526777724], [7.028576367561635, 50.96895806203878], [7.029167988407014, 50.966509168207146], [7.031022753102069, 50.96654523518873], [7.034204381944364, 50.95760649849387], [7.033829636693896, 50.956972862946216], [7.034834475350353, 50.95679508544762], [7.036430728470999, 50.95227612497937], [7.027672202128653, 50.950742325238295], [7.023580901867831, 50.949059896001714], [7.020006928213448, 50.94825660369248], [7.019520279313769, 50.94860917590621], [7.01656138688693, 50.94818147054051], [7.012991382804269, 50.951302129332], [7.012182217313347, 50.95332148585693], [7.01214248704985, 50.954422607709226], [7.013110555251758, 50.95629118202591], [7.012573480859996, 50.956659564260875], [7.0158550206445565, 50.9603274615774], [7.0167895738185875, 50.961710120750666], [7.01588094160974, 50.96198691498444], [7.019900995441524, 50.96700798658717], [7.019619677378366, 50.969177225297635], [7.017601038594244, 50.97204922606593], [7.0280148683268076, 50.973969668429085], [7.028573977931841, 50.972792965017845]]]}}, {"type": "Feature", "properties": {"name": "Höhenberg", "nummer": "804", "stbezirk": "Kalk"}, "geometry": {"type": "Polygon", "coordinates": [[[7.039673017021671, 50.95245884210036], [7.040568212048802, 50.95197781446944], [7.039245558822611, 50.950415903804206], [7.038977674193862, 50.949171934257016], [7.039569130164708, 50.94811207135757], [7.039158802734568, 50.94776133474725], [7.040162483780261, 50.94537239177514], [7.0419739077845716, 50.94255044556209], [7.037074242329089, 50.94167674026693], [7.036595901322863, 50.94054085362188], [7.033192190095646, 50.93854761542767], [7.028041309617182, 50.93640655318093], [7.024267150793607, 50.93715861922621], [7.023102234168366, 50.936451266834126], [7.020957721206407, 50.936744433800214], [7.021404194863702, 50.93564316799871], [7.017123004112645, 50.93593748146155], [7.016484144090075, 50.939612765995115], [7.018513308959251, 50.9426385015349], [7.0176133588444864, 50.947030284488626], [7.01656138688693, 50.94818147054051], [7.019520279313769, 50.94860917590621], [7.020006928213448, 50.94825660369248], [7.023580901867831, 50.949059896001714], [7.027672202128653, 50.950742325238295], [7.0398785764673155, 50.95269454461795], [7.039673017021671, 50.95245884210036]]]}}, {"type": "Feature", "properties": {"name": "Mülheim", "nummer": "901", "stbezirk": "Mülheim"}, "geometry": {"type": "Polygon", "coordinates": [[[7.01184686655348, 50.99081857377396], [7.013321866685493, 50.98681191810717], [7.01466540188902, 50.985055087481655], [7.014376499443217, 50.983955703524146], [7.012615992581426, 50.98203203607329], [7.013137918383232, 50.981717074191266], [7.015408388121299, 50.98275672866071], [7.016723206763882, 50.982768408617055], [7.025429882771382, 50.97698255493978], [7.0280148683268076, 50.973969668429085], [7.017601038594244, 50.97204922606593], [7.019619677378366, 50.969177225297635], [7.019900995441524, 50.96700798658717], [7.01588094160974, 50.96198691498444], [7.0167895738185875, 50.961710120750666], [7.012573480859996, 50.956659564260875], [7.013110555251758, 50.95629118202591], [7.012231080728839, 50.954960823137135], [7.010622402846996, 50.955515413992956], [7.008876521214775, 50.95456567946452], [7.005931712529407, 50.954164918833946], [7.00120575348431, 50.95476710540003], [7.0011004439888485, 50.95417245599897], [7.000089405274729, 50.95437486675028], [6.99912404970784, 50.95246794898641], [6.997408458715578, 50.95146024524117], [6.995610737225397, 50.94937921658865], [6.9942642517445055, 50.949695789427295], [6.992372781625734, 50.948127920270444], [6.989515155495548, 50.94652671601665], [6.988993630202467, 50.94686665393966], [6.9880930571301745, 50.946465423798045], [6.985904909432789, 50.947668971793966], [6.983588697289281, 50.944928175952185], [6.978161426252942, 50.946926500329916], [6.9807192602603605, 50.94904223248767], [6.98264032272186, 50.94972390038014], [6.98147303615834, 50.95004465826928], [6.975554571672341, 50.954652545873714], [6.9789542091120325, 50.9562558829908], [6.987990599282717, 50.959469619369344], [6.991239791186283, 50.961085262462426], [6.9951857267859205, 50.96423549164669], [6.9980705066959725, 50.968192806996434], [6.998873611558986, 50.97038208139623], [6.998965813726179, 50.97257631957977], [6.9983720946054975, 50.97472128850499], [6.997108810342591, 50.97676148909203], [6.999580822779922, 50.977519516447146], [7.000421254111251, 50.979189032837844], [7.000220553252233, 50.979774060333014], [7.001852012369231, 50.98011538101463], [6.999617388646749, 50.98401287433571], [6.9992682204991015, 50.98739500061381], [7.001126514380256, 50.987014724622576], [7.002302106215024, 50.98631770493], [7.002955790367491, 50.98743488842585], [7.002905307990835, 50.98863777100982], [7.004390032735805, 50.989941598491015], [7.01184686655348, 50.99081857377396]]]}}, {"type": "Feature", "properties": {"name": "Vingst", "nummer": "803", "stbezirk": "Kalk"}, "geometry": {"type": "Polygon", "coordinates": [[[7.031386319373868, 50.93657396490221], [7.032097597579691, 50.93433177955285], [7.0317839670897495, 50.93243699858573], [7.027743641394851, 50.92968166902736], [7.0273263911619805, 50.92920843909197], [7.028123461705311, 50.92893274079115], [7.027280380677716, 50.927385195637925], [7.02705143082031, 50.92889598270358], [7.0251717193831285, 50.92671319976937], [7.024700085740963, 50.92275940918325], [7.015369685194424, 50.92817103317265], [7.0160451040165155, 50.92900892905839], [7.016949141542372, 50.931581490487176], [7.017123004112645, 50.93593748146155], [7.021404194863702, 50.93564316799871], [7.020957721206407, 50.936744433800214], [7.023102234168366, 50.936451266834126], [7.024267150793607, 50.93715861922621], [7.028041309617182, 50.93640655318093], [7.032141072042112, 50.938017675436946], [7.0320822560350145, 50.93681154819382], [7.031386319373868, 50.93657396490221]]]}}, {"type": "Feature", "properties": {"name": "Riehl", "nummer": "503", "stbezirk": "Nippes"}, "geometry": {"type": "Polygon", "coordinates": [[[6.970256807326685, 50.9711875049161], [6.97485237218592, 50.971239248118444], [6.975228280846441, 50.97043389656223], [6.97746161798948, 50.97043593520211], [6.978072965692522, 50.96959943328226], [6.983842642236379, 50.97063818667208], [6.9846068300375626, 50.969689422711596], [6.9863578490577805, 50.97004154386317], [6.98669669710564, 50.96935020488964], [6.987621873599664, 50.969535792495385], [6.98889225059088, 50.96694328574077], [6.9900631144780005, 50.96614291619493], [6.995387998895246, 50.96444837270528], [6.992819787403896, 50.96214172737141], [6.9897403040979675, 50.9602612189462], [6.978495977101975, 50.956072509391554], [6.974349493431472, 50.953914358116904], [6.972422699839378, 50.95532802076281], [6.973816154934866, 50.95625909428545], [6.967437323810267, 50.95874169357817], [6.968074172807285, 50.9616186456343], [6.964792455031594, 50.96237682653571], [6.965507690180094, 50.96341307438453], [6.9682473639116935, 50.963242044192285], [6.968362553600167, 50.96391569068481], [6.967568254131086, 50.96408100389771], [6.968593292603684, 50.96667328517532], [6.96786285123775, 50.96679886211628], [6.967889567206574, 50.96759775327513], [6.968705982781368, 50.96740997922788], [6.968744985592063, 50.96807554420875], [6.9675731993150425, 50.96824699835231], [6.968370552254716, 50.968402076047106], [6.9683814834553015, 50.970105954356086], [6.967631961273527, 50.97013030484606], [6.967660046753786, 50.970408552818405], [6.968869239934206, 50.97038574875355], [6.9689172405205415, 50.97124848428154], [6.970256807326685, 50.9711875049161]]]}}, {"type": "Feature", "properties": {"name": "Poll", "nummer": "701", "stbezirk": "Porz"}, "geometry": {"type": "Polygon", "coordinates": [[[6.987122881662787, 50.929016567051924], [6.9994225541292465, 50.92367707936234], [7.0007367614623135, 50.9241463243586], [7.0080035828330915, 50.9249265745469], [7.0102736614628425, 50.92469290836187], [7.012393285354817, 50.92396702692177], [7.0123740354713275, 50.920133887179276], [7.012726482064847, 50.91869929048871], [7.014152903422485, 50.91672948646961], [7.017175835279987, 50.91472947435046], [7.011226207723444, 50.91347655367577], [7.003612160455299, 50.91006483727935], [6.994265085292846, 50.90170276634798], [6.990545308813792, 50.89922765326084], [6.985563312580788, 50.902373070390695], [6.981488678974925, 50.90595831851935], [6.97699546043895, 50.911504136998715], [6.9733447476827966, 50.91721801178821], [6.9807687009934085, 50.91905673020911], [6.98284685583517, 50.920141183183496], [6.983764900274021, 50.921540132607475], [6.983683817419157, 50.92427654006599], [6.984029006251105, 50.925760194377844], [6.98525351056765, 50.92759410786472], [6.986635443593433, 50.92896884001114], [6.987122881662787, 50.929016567051924]]]}}, {"type": "Feature", "properties": {"name": "Kalk", "nummer": "802", "stbezirk": "Kalk"}, "geometry": {"type": "Polygon", "coordinates": [[[6.997711285099297, 50.94885105884416], [7.001376731680633, 50.94807668703779], [7.001522485640842, 50.947112646661054], [7.016418495633486, 50.94829768758001], [7.017362432069426, 50.947356910186386], [7.018512736487313, 50.94256224598887], [7.016484144090075, 50.939612765995115], [7.017248859052839, 50.93370441998533], [7.016793864357651, 50.930951703151244], [7.015369685194424, 50.92817103317265], [6.9879585382649525, 50.939684156094835], [6.99237590932781, 50.94115594386165], [6.995488228235105, 50.9472507931152], [6.996863836191232, 50.94895537333759], [6.997711285099297, 50.94885105884416]]]}}, {"type": "Feature", "properties": {"name": "Deutz", "nummer": "105", "stbezirk": "Innenstadt"}, "geometry": {"type": "Polygon", "coordinates": [[[6.9923430020956125, 50.93477732248518], [6.984739556657482, 50.9269683993484], [6.983722855342804, 50.92481478022096], [6.983764900274021, 50.921540132607475], [6.98284685583517, 50.920141183183496], [6.9807687009934085, 50.91905673020911], [6.9733447476827966, 50.91721801178821], [6.968946274749473, 50.92650140611635], [6.96571978764871, 50.93595838722312], [6.965044893691881, 50.9406246110721], [6.96565966344809, 50.94434680487305], [6.967024410045211, 50.94704838610774], [6.9692135737576635, 50.949737158728574], [6.97212788009747, 50.952348736845686], [6.975554571672341, 50.954652545873714], [6.98147303615834, 50.95004465826928], [6.98264032272186, 50.94972390038014], [6.9807192602603605, 50.94904223248767], [6.978161426252942, 50.946926500329916], [6.983588697289281, 50.944928175952185], [6.985904909432789, 50.947668971793966], [6.9880930571301745, 50.946465423798045], [6.988993630202467, 50.94686665393966], [6.989515155495548, 50.94652671601665], [6.992372781625734, 50.948127920270444], [6.9942642517445055, 50.949695789427295], [6.996863836191232, 50.94895537333759], [6.99525011052299, 50.946877071811734], [6.99237590932781, 50.94115594386165], [6.9879585382649525, 50.939684156094835], [6.994178347007087, 50.9370598146924], [6.993390264387547, 50.93697662341943], [6.9923430020956125, 50.93477732248518]]]}}]};
-
-// Speicherung pro Gerät
-const STORAGE_KEY = "koeln_roles_v2";
+// localStorage
+const STORAGE_KEY = "koeln_roles_muelheim_v1";
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch(e) { saved = {}; }
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(saved)); }
 
-function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+function box(lat, lon, dLat, dLon) {
+  return [
+    [lat - dLat, lon - dLon],
+    [lat - dLat, lon + dLon],
+    [lat + dLat, lon + dLon],
+    [lat + dLat, lon - dLon]
+  ];
+}
+
+function styleFor(name, important=false, special=false) {
+  const role = saved[name];
+  const fillColor = (role && roleColors[role]) ? roleColors[role] : "white";
+  const fillOpacity = (role && roleColors[role]) ? 0.60 : 0.18;
+  const weight = special ? 4 : (important ? 3 : 2);
+  return { color:"#111", weight, fillColor, fillOpacity };
 }
 
 function popupHTML(name) {
-  let html = `<b>${name}</b><br>Hauptakteur wählen:<br>`;
-  for (const role in roleColors) {
-    html += `<button class="role-btn" onclick='setRole("${name}","${role}")'>${role}</button>`;
-  }
-  html += `<button class="role-btn" onclick='clearRole("${name}")'>Keine Zuordnung</button>`;
-  return html;
+  return `
+    <b>${name}</b><br>
+    <button class="roleBtn" onclick="setRole('${name}','Industrie')">Industrie (blau)</button>
+    <button class="roleBtn" onclick="setRole('${name}','Start-ups')">Start-ups (gelb)</button>
+    <button class="roleBtn" onclick="setRole('${name}','Wohnen')">Wohnen (rot)</button>
+    <button class="roleBtn" onclick="setRole('${name}','Freizeit/Kultur')">Freizeit/Kultur (grün)</button>
+    <button class="roleBtn" onclick="clearRole('${name}')">Keine Zuordnung</button>
+  `;
 }
 
-// Mapping Name -> Leaflet layer
-const layerByName = {};
+const layers = {};
 
 window.setRole = function(name, role) {
-  const layer = layerByName[name];
-  if (!layer) return;
-  layer.setStyle({ fillColor: roleColors[role], fillOpacity: 0.55, color:"#111", weight:2 });
-  saved[name] = role;
-  save();
-  layer.closePopup();
+  saved[name] = role; save();
+  if (layers[name]) layers[name].setStyle(styleFor(name, layers[name].__important, layers[name].__special));
+  if (layers[name]) layers[name].closePopup();
 };
-
 window.clearRole = function(name) {
-  const layer = layerByName[name];
-  if (!layer) return;
-  layer.setStyle({ fillColor: "white", fillOpacity: 0.15, color:"#111", weight:2 });
-  delete saved[name];
-  save();
-  layer.closePopup();
+  delete saved[name]; save();
+  if (layers[name]) layers[name].setStyle(styleFor(name, layers[name].__important, layers[name].__special));
+  if (layers[name]) layers[name].closePopup();
 };
 
-function baseStyle(feature) {
-  const name = feature.properties.name;
-  const role = saved[name];
-  if (role && roleColors[role]) {
-    return { color:"#111", weight:2, fillColor: roleColors[role], fillOpacity:0.55 };
-  }
-  return { color:"#111", weight:2, fillColor:"white", fillOpacity:0.15 };
+function addTile(name, coords, opts={}) {
+  const important = !!opts.important;
+  const special = !!opts.special;
+  const poly = L.polygon(coords, styleFor(name, important, special)).addTo(map);
+  poly.__important = important;
+  poly.__special = special;
+  poly.bindPopup(popupHTML(name), {maxWidth: 280});
+  poly.on('click', () => poly.openPopup()); // Farbauswahl sofort
+  layers[name] = poly;
+  return poly;
 }
 
-const geoLayer = L.geoJSON(districts, {
-  style: baseStyle,
-  onEachFeature: (feature, layer) => {
-    const name = feature.properties.name;
-    layerByName[name] = layer;
-    layer.on('click', () => {
-      layer.bindPopup(popupHTML(name), {maxWidth: 280}).openPopup();
-    });
-  }
-}).addTo(map);
+// Rechtsrheinisch (grobe Kacheln)
+addTile("Deutz (gesamt)", box(50.9388, 6.9945, 0.0065, 0.0120));
+addTile("Kalk (gesamt)",  box(50.9405, 7.0300, 0.0075, 0.0150));
+addTile("Buchheim",       box(50.9530, 7.0220, 0.0048, 0.0100));
+addTile("Buchforst",      box(50.9500, 7.0120, 0.0043, 0.0080));
+addTile("Poll",           box(50.9195, 7.0120, 0.0060, 0.0120));
 
-map.fitBounds(geoLayer.getBounds(), {padding:[20,20]});
+// Mülheim-Fokus (Teil-Kacheln)
+addTile("Mülheim – Rheinfront", box(50.9570, 7.0080, 0.0048, 0.0100), {important:true});
+addTile("Mülheim – Wiener Platz / Zentrum", box(50.9610, 7.0105, 0.0042, 0.0080), {important:true});
+addTile("Mülheim – Schanzenstraße / Kreativcluster", box(50.9560, 7.0170, 0.0040, 0.0065), {important:true});
+addTile("Mülheim – Keupstraße / Handel & Migration", box(50.9590, 7.0235, 0.0038, 0.0070), {important:true});
+addTile("Mülheim – Nord / Wohnen", box(50.9670, 7.0150, 0.0045, 0.0100), {important:true});
 
+// Spezialkacheln
+addTile("Lanxess Arena (Spezial)", box(50.9386, 6.9822, 0.0012, 0.0018), {special:true});
+addTile("Carlswerk (Spezial)",     box(50.9546, 7.0149, 0.0012, 0.0018), {special:true});
+
+// Fokus-Bounds
+const focusBounds = L.latLngBounds([[50.946, 6.982],[50.973, 7.035]]);
+map.fitBounds(focusBounds, {padding:[20,20]});
+
+// Tools
+const tools = L.control({position:'topright'});
+tools.onAdd = function() {
+  const div = L.DomUtil.create('div', 'leaflet-bar');
+  div.style.background = 'rgba(255,255,255,0.92)';
+  div.style.padding = '8px';
+  div.style.borderRadius = '10px';
+  div.style.border = '1px solid #ddd';
+  div.style.boxShadow = '0 10px 26px rgba(0,0,0,.08)';
+  div.style.minWidth = '170px';
+  div.innerHTML = `
+    <div style="font-size:12px; color:#333; margin-bottom:6px;"><b>Tools</b></div>
+    <button id="btnResetView" style="width:100%; padding:8px 10px; border:1px solid #ddd; border-radius:10px; background:#fff; font-size:13px; margin:4px 0; cursor:pointer;">Ansicht zurück</button>
+    <button id="btnResetColors" style="width:100%; padding:8px 10px; border:1px solid #ddd; border-radius:10px; background:#fff; font-size:13px; margin:4px 0; cursor:pointer;">Farben zurücksetzen</button>
+    <button id="btnExport" style="width:100%; padding:8px 10px; border:1px solid #ddd; border-radius:10px; background:#fff; font-size:13px; margin:4px 0; cursor:pointer;">Export (Text)</button>
+    <div style="margin-top:6px; font-size:11px; color:#666; line-height:1.25;">
+      Klick auf Kachel → Rolle wählen. Speicherung pro Gerät.
+    </div>
+  `;
+  L.DomEvent.disableClickPropagation(div);
+  return div;
+};
+tools.addTo(map);
+
+function resetView(){ map.fitBounds(focusBounds, {padding:[20,20]}); }
+function resetColors(){
+  saved = {}; save();
+  Object.keys(layers).forEach(n => layers[n].setStyle(styleFor(n, layers[n].__important, layers[n].__special)));
+}
+function exportText(){
+  const out = Object.keys(layers).sort().map(n => ({gebiet:n, rolle: saved[n] || ""}));
+  const txt = JSON.stringify(out, null, 2);
+  prompt("Kopiere den Export-Text (Copy):", txt);
+}
+
+document.addEventListener('click', (e) => {
+  if(e.target && e.target.id === 'btnResetView') resetView();
+  if(e.target && e.target.id === 'btnResetColors') resetColors();
+  if(e.target && e.target.id === 'btnExport') exportText();
+});
 </script>
 </body>
 </html>
