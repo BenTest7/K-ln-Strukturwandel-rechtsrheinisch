@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Strukturwandel Köln – Rollenkarte (Route-Fokus, SW-Straßenkarte, reale Grenzen)</title>
+<title>Strukturwandel Köln – Deutz & Mülheim (reale Grenzen, SW-High-Contrast, Labels)</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
@@ -13,9 +13,12 @@
   header p { margin:0; font-size:12px; color:#444; line-height:1.25; }
   #map { height: calc(100% - 82px); width:100%; }
 
-  /* Schwarz/Weiß-Look für Kacheln (Straßen bleiben sichtbar) */
-  .leaflet-tile { filter: grayscale(100%) contrast(110%) brightness(102%); }
+  /* SW + deutlich (Kontrast hoch, Linien "knackig") */
+  .leaflet-tile {
+    filter: grayscale(100%) contrast(170%) brightness(118%);
+  }
 
+  /* Popup Buttons */
   .roleBtn{
     display:block; width:100%;
     margin:6px 0; padding:10px 12px;
@@ -24,23 +27,48 @@
   }
   .roleBtn:active { transform: translateY(1px); }
 
+  /* Status/Tools Box */
   .statusBox{
-    background: rgba(255,255,255,.92);
+    background: rgba(255,255,255,.94);
     border: 1px solid #ddd;
     border-radius: 12px;
     padding: 8px 10px;
-    box-shadow: 0 10px 26px rgba(0,0,0,.08);
+    box-shadow: 0 10px 26px rgba(0,0,0,.10);
     font-size: 12px;
     line-height: 1.25;
+  }
+
+  /* Dauerhafte Labels */
+  .districtLabel{
+    background: rgba(255,255,255,0.78);
+    border: 1px solid rgba(0,0,0,0.20);
+    border-radius: 999px;
+    padding: 2px 8px;
+    color:#111;
+    font-weight: 800;
+    font-size: 12px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.12);
+    white-space: nowrap;
+  }
+  .poiLabel{
+    background: rgba(255,255,255,0.85);
+    border: 1px solid rgba(0,0,0,0.25);
+    border-radius: 10px;
+    padding: 2px 6px;
+    color:#111;
+    font-weight: 800;
+    font-size: 11px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.12);
+    white-space: nowrap;
   }
 </style>
 </head>
 <body>
 <header>
-  <h1>Strukturwandel Köln (rechtsrheinisch) – Rollenkarte</h1>
+  <h1>Strukturwandel Köln – Rollenkarte (Deutz & Mülheim)</h1>
   <p>
-    Basiskarte: <b>Straßenkarte in Schwarz/Weiß</b>. Klick auf eine Fläche → Rolle wählen: Industrie <b>(blau)</b>, Start-ups <b>(gelb)</b>, Wohnen <b>(rot)</b>, Freizeit/Kultur <b>(grün)</b>.
-    <br>Fokus: nur die Gebiete der Route (Deutz ↔ Messe/Arena/Rheinpark ↔ Mülheim).
+    Basiskarte: <b>Straßenkarte Schwarz/Weiß (hoher Kontrast)</b>. Klick auf eine Fläche → Rolle wählen: Industrie <b>(blau)</b>, Start-ups <b>(gelb)</b>, Wohnen <b>(rot)</b>, Freizeit/Kultur <b>(grün)</b>.
+    <br>Nur die Gebiete der Route: <b>Deutz</b> + <b>Stadtviertel in Mülheim</b> + Spezialbezirke (Lanxess Arena, koelnmesse, Bhf Deutz, Carlswerk). Labels sind dauerhaft sichtbar.
   </p>
 </header>
 
@@ -48,25 +76,23 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-/* Datenquellen (Geoportal Stadt Köln / ArcGIS REST)
+/* Geoportal Stadt Köln / ArcGIS REST
    - Stadtteile:   Basiskarten/kgg/MapServer/3
    - Stadtviertel: Basiskarten/kgg/MapServer/1
 */
+const map = L.map('map', { zoomControl: true }).setView([50.948, 7.008], 13);
 
-const map = L.map('map', { zoomControl: true }).setView([50.949, 7.005], 13);
-
-// Straßenkarte (OSM) als Default (damit Straßen/Orientierung deutlich sind)
+// OSM Straßen als Standard (Kontrast via CSS)
 const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19, attribution: '© OpenStreetMap-Mitwirkende'
 }).addTo(map);
 
-// optional: Carto Light als Alternative
+// Alternative: Carto Light (ebenfalls SW via CSS)
 const carto = L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png', {
   subdomains:'abcd', maxZoom: 20,
   attribution: 'Map tiles by Carto (CC BY 3.0). Data © OpenStreetMap contributors (ODbL).'
 });
-
-L.control.layers({"OSM Straßenkarte (SW)": osm, "Carto Light (SW)": carto}, null, {collapsed:true}).addTo(map);
+L.control.layers({"OSM Straßen (SW Hi-Contrast)": osm, "Carto Light (SW)": carto}, null, {collapsed:true}).addTo(map);
 
 // Rollen / Farben
 const roleColors = {
@@ -76,7 +102,7 @@ const roleColors = {
   "Freizeit/Kultur": "green"
 };
 
-const STORAGE_KEY = "koeln_roles_route_v3";
+const STORAGE_KEY = "koeln_roles_deutz_muelheim_v4";
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch(e) { saved = {}; }
 function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(saved)); }
@@ -111,11 +137,11 @@ function styleForKey(key, kind){
   const role = saved[key];
   const fillColor = (role && roleColors[role]) ? roleColors[role] : "white";
   const hasRole = !!(role && roleColors[role]);
-  // Stadtviertel etwas deutlicher, Stadtteile sehr transparent, POIs deutlich umrissen
-  let baseOpacity = (kind === "SV") ? 0.16 : 0.08;
+  // Polygone: ohne Rolle transparent, mit Rolle kräftiger
+  let baseOpacity = (kind === "SV") ? 0.14 : 0.10;
   if(kind === "POI") baseOpacity = 0.10;
   const fillOpacity = hasRole ? 0.58 : baseOpacity;
-  const weight = (kind === "POI") ? 5 : (kind === "SV" ? 2.5 : 2);
+  const weight = (kind === "POI") ? 5 : 3; // dickere Umrisse für Orientierung
   return { color:"#111", weight, fillColor, fillOpacity };
 }
 
@@ -182,6 +208,7 @@ function pickName(props, candidates){
   return null;
 }
 
+// approximate centroid from first ring average
 function approxCentroidLonLat(feature){
   try{
     const ring = feature.geometry.coordinates[0];
@@ -193,20 +220,27 @@ function approxCentroidLonLat(feature){
   }
 }
 
-// ROUTE-FOKUS Envelope: Deutz (südlichster) bis Mülheim, nicht weiter nördlich
-// (diese Werte kannst du später noch enger/weiter setzen)
+// ROUTE envelope (enger): Deutz bis Mülheim (nicht weiter)
 const env = {
-  xmin: 6.975, ymin: 50.928,  // Deutz/Arena
-  xmax: 7.040, ymax: 50.968   // Mülheim / Carlswerk / Schanzenstraße
+  xmin: 6.975, ymin: 50.932,   // Deutz/Arena
+  xmax: 7.035, ymax: 50.972    // Mülheim/Carlswerk
 };
-
-// rechtsrheinisch-Filter (grob über centroid lon)
 const RIGHT_BANK_LON_MIN = 6.975;
 
 let stLayer=null, svLayer=null;
 
+// Add permanent label helper
+function addPermanentLabel(layer, name, className){
+  layer.bindTooltip(name, {
+    permanent: true,
+    direction: 'center',
+    className: className,
+    opacity: 1.0
+  });
+}
+
 async function loadBoundaries(){
-  setStatus("<b>Status:</b> Lade Stadtteile…");
+  setStatus("<b>Status:</b> Lade Deutz & Mülheim…");
 
   const qCommon = {
     where: "1=1",
@@ -220,23 +254,34 @@ async function loadBoundaries(){
     resultRecordCount: "5000"
   };
 
-  const st = await arcgisQuery(3, qCommon); // Stadtteile
-  setStatus("<b>Status:</b> Lade Stadtviertel…");
-  const sv = await arcgisQuery(1, qCommon); // Stadtviertel
+  // Stadtteile (Kontext) – aber nur Deutz und Mülheim
+  const st = await arcgisQuery(3, qCommon);
+  // Stadtviertel – aber nur die, die zu Mülheim gehören
+  const sv = await arcgisQuery(1, qCommon);
 
+  // rechtsrheinisch + Name-Filter
   st.features = st.features.filter(f => {
     const c = approxCentroidLonLat(f);
-    return c && c.lon >= RIGHT_BANK_LON_MIN;
+    if(!(c && c.lon >= RIGHT_BANK_LON_MIN)) return false;
+    const nm = pickName(f.properties, ["STADTTEIL","NAME","Name","stadtteil"]) || "";
+    return /deutz/i.test(nm) || /mülheim/i.test(nm);
   });
+
+  // Stadtviertel: nur Mülheim (über mehrere mögliche Attribute)
   sv.features = sv.features.filter(f => {
     const c = approxCentroidLonLat(f);
-    return c && c.lon >= RIGHT_BANK_LON_MIN;
+    if(!(c && c.lon >= RIGHT_BANK_LON_MIN)) return false;
+    const nm = pickName(f.properties, ["STADTVIERTEL","NAME","Name","stadtviertel","STV","BEZEICHNUNG"]) || "";
+    const stnm = pickName(f.properties, ["STADTTEIL","STADTTEILNAME","stadtteil"]) || "";
+    const bznm = pickName(f.properties, ["STADTBEZIRK","BEZIRK","stadtbezirk"]) || "";
+    const tag = (nm + " " + stnm + " " + bznm).toLowerCase();
+    return tag.includes("mülheim") || tag.includes("muelheim");
   });
 
   if(stLayer) map.removeLayer(stLayer);
   if(svLayer) map.removeLayer(svLayer);
 
-  // Stadtteile (Kontext)
+  // Stadtteile: Deutz und Mülheim
   st.features.forEach(ft => {
     const nm = pickName(ft.properties, ["STADTTEIL","NAME","Name","stadtteil"]) || "Ort";
     ft.properties.__name = nm;
@@ -253,10 +298,11 @@ async function loadBoundaries(){
       layerByKey[key] = layer;
       layer.bindPopup(popupHTML(key, name), {maxWidth: 300});
       layer.on('click', () => layer.openPopup());
+      addPermanentLabel(layer, name, "districtLabel");
     }
   }).addTo(map);
 
-  // Stadtviertel (feinere Grenzen sichtbar)
+  // Stadtviertel: nur Mülheim-Teilflächen
   sv.features.forEach(ft => {
     const nm = pickName(ft.properties, ["STADTVIERTEL","NAME","Name","stadtviertel","STV","BEZEICHNUNG"]) || "Ort";
     ft.properties.__name = nm;
@@ -273,20 +319,21 @@ async function loadBoundaries(){
       layerByKey[key] = layer;
       layer.bindPopup(popupHTML(key, name), {maxWidth: 300});
       layer.on('click', () => layer.openPopup());
+      addPermanentLabel(layer, name, "districtLabel");
     }
   }).addTo(map);
 
-  // Spezialbezirke (als eigene „Kacheln“/Flächen um wichtige Punkte)
+  // Spezialbezirke (Kreise als eigene Flächen)
   addPOI("Lanxess Arena", [50.9386, 6.9822], 180);
-  addPOI("koelnmesse",    [50.9446, 6.9836], 220);      // Messegelände (ungefähr)
-  addPOI("Bhf Deutz",     [50.9409, 6.9827], 170);      // Bahnhof Köln Messe/Deutz
+  addPOI("koelnmesse",    [50.9446, 6.9836], 220);
+  addPOI("Bhf Deutz",     [50.9409, 6.9827], 170);
   addPOI("Carlswerk",     [50.9546, 7.0149], 180);
 
-  // Maßstab kleiner: etwas weiter raus als vorher
-  map.fitBounds(L.latLngBounds([[env.ymin, env.xmin],[env.ymax, env.xmax]]), {padding:[30,30]});
-  map.setZoom(Math.max(12, map.getZoom()-1)); // einen Tick weiter raus
+  // View: enger und trotzdem gut orientierbar
+  const bounds = L.latLngBounds([[env.ymin, env.xmin],[env.ymax, env.xmax]]);
+  map.fitBounds(bounds, {padding:[30,30]});
 
-  setStatus("<b>Status:</b> Fertig. Tipp: Flächen antippen → Rolle wählen.");
+  setStatus("<b>Status:</b> Fertig. (Deutz + Mülheim-Teilflächen + Spezialbezirke)");
 }
 
 function addPOI(name, latlng, radius){
@@ -297,13 +344,21 @@ function addPOI(name, latlng, radius){
   circle.bindPopup(popupHTML(key, name), {maxWidth: 280});
   circle.on('click', () => circle.openPopup());
   circle.addTo(map);
+  // dauerhafter POI-Label (leicht versetzt)
+  circle.bindTooltip(name, {
+    permanent: true,
+    direction: 'top',
+    offset: [0,-8],
+    className: 'poiLabel',
+    opacity: 1.0
+  });
 }
 
 // Tools
 const tools = L.control({position:'topright'});
 tools.onAdd = function() {
   const div = L.DomUtil.create('div', 'statusBox');
-  div.style.minWidth = '180px';
+  div.style.minWidth = '190px';
   div.innerHTML = `
     <b>Tools</b><br>
     <button id="btnReload" style="width:100%; margin-top:6px; padding:8px 10px; border:1px solid #ddd; border-radius:10px; background:#fff; font-size:13px; cursor:pointer;">Grenzen neu laden</button>
