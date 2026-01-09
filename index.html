@@ -558,20 +558,13 @@ map.on('mousemove', (e) => {
 /* ============================
    Tools Control
    ============================ */
-const tools = L.control({position:'topright'});
+const tools = L.control({position:'bottomleft'});
 tools.onAdd = function() {
   const div = L.DomUtil.create('div', 'statusBox');
-  div.style.minWidth = '210px';
+  div.style.minWidth = '140px';
   div.innerHTML = `
-    <b>Tools</b><br>
-    <button id="btnAddRect" style="width:100%; margin-top:6px; padding:8px 10px; border:1px solid #ddd; border-radius:10px; background:#fff; font-size:13px; cursor:pointer;">Rechteck hinzufügen</button>
-    <button id="btnCancelRect" style="width:100%; margin-top:6px; padding:8px 10px; border:1px solid #ddd; border-radius:10px; background:#fff; font-size:13px; cursor:pointer;">Rechteckmodus beenden</button>
-    <button id="btnReload" style="width:100%; margin-top:6px; padding:8px 10px; border:1px solid #ddd; border-radius:10px; background:#fff; font-size:13px; cursor:pointer;">Grenzen neu laden</button>
-    <button id="btnReset" style="width:100%; margin-top:6px; padding:8px 10px; border:1px solid #ddd; border-radius:10px; background:#fff; font-size:13px; cursor:pointer;">Farben zurücksetzen</button>
-    <button id="btnExport" style="width:100%; margin-top:6px; padding:8px 10px; border:1px solid #ddd; border-radius:10px; background:#fff; font-size:13px; cursor:pointer;">Export (Text)</button>
-    <div style="margin-top:8px; font-size:11px; color:#666; line-height:1.25;">
-      Zoom ≥16: Schanzenstraße Teilflächen. Eigenes Rechteck: Ecke1→Ecke2, dann Popup zum Färben/Löschen.
-    </div>
+    <b>Feld hinzufügen</b><br>
+    <button id="btnAddRect" style="width:100%; margin-top:6px; padding:6px 8px; border:1px solid #ddd; border-radius:8px; background:#fff; font-size:12px; cursor:pointer;">+ Rechteck</button>
   `;
   L.DomEvent.disableClickPropagation(div);
   return div;
@@ -593,10 +586,10 @@ function exportText(){
 
 document.addEventListener('click', (e) => {
   if(e.target && e.target.id === 'btnAddRect') setDrawMode(true);
-  if(e.target && e.target.id === 'btnCancelRect') setDrawMode(false);
-  if(e.target && e.target.id === 'btnReload') loadBoundaries().catch(err => setStatus("<b>Status:</b> Fehler: " + err.message));
-  if(e.target && e.target.id === 'btnReset') resetColors();
-  if(e.target && e.target.id === 'btnExport') exportText();
+  // removed setDrawMode(false);
+  // removed loadBoundaries().catch(err => setStatus("<b>Status:</b> Fehler: " + err.message));
+  // removed resetColors();
+  // removed exportText();
 });
 
 map.on('zoomend', updateMicroTiles);
