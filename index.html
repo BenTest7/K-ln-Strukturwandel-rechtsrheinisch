@@ -1,381 +1,89 @@
-<!doctype html>
-<html lang="de">
+
+<!DOCTYPE html>
+<html>
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Köln Deutz–Mülheim – Kachelkarte + Stadtteilgrenzen (ohne Leaflet)</title>
+<meta charset="utf-8" />
+<title>Strukturwandel Köln – Interaktive Karte</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <style>
-  html, body { height:100%; margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-  header { padding:10px 12px; border-bottom:1px solid #ddd; background:#fff; }
-  header h1 { font-size:16px; margin:0 0 6px; }
-  header p { margin:0; font-size:12px; color:#444; line-height:1.25; }
-  #map { position:relative; height: calc(100% - 78px); width:100%; overflow:hidden; background:#e9ecef; touch-action:none; }
-  #tiles { position:absolute; inset:0; }
-  #overlay { position:absolute; inset:0; pointer-events:none; }
-  #overlay svg { width:100%; height:100%; }
-  .district { fill:white; fill-opacity:0.15; stroke:#111; stroke-width:2; pointer-events:auto; }
-  .district.selected { stroke-width:4; }
-  .label { font-size:12px; font-weight:700; fill:#111; paint-order:stroke; stroke:#fff; stroke-width:3px; pointer-events:none; }
-  #hud { position:absolute; right:10px; top:10px; display:flex; flex-direction:column; gap:8px; z-index:5; }
-  .btn { background:rgba(255,255,255,.95); border:1px solid #ddd; border-radius:12px; padding:10px 12px; font-size:14px; box-shadow:0 8px 24px rgba(0,0,0,.08); cursor:pointer; user-select:none; }
-  .btn:active { transform: translateY(1px); }
-  #legend { position:absolute; left:10px; bottom:10px; background:rgba(255,255,255,.95); border:1px solid #ddd; border-radius:12px; padding:8px 10px; font-size:12px; z-index:5; max-width:80%; }
-  #legend .row{ display:flex; align-items:center; gap:8px; margin:4px 0; }
-  .sw{ width:14px; height:14px; border-radius:4px; border:1px solid #999; }
-  #popupWrap { position:absolute; inset:0; display:none; z-index:10; }
-  #scrim { position:absolute; inset:0; background:rgba(0,0,0,.28); }
-  #popup {
-    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
-    width:min(360px, 92vw); background:#fff; border:1px solid #ddd; border-radius:14px;
-    box-shadow:0 18px 50px rgba(0,0,0,.20); padding:12px;
+  html, body { height: 100%; margin: 0; padding: 0; }
+  #map { height: 100vh; width: 100%; }
+  h2 { text-align: center; font-family: Arial, sans-serif; margin: 5px 0; }
+  p { text-align: center; font-family: Arial, sans-serif; margin: 5px 0 10px 0; }
+  button {
+    display: block;
+    width: 100%;
+    margin: 2px 0;
+    padding: 6px 12px;
+    font-size: 14px;
+    cursor: pointer;
   }
-  #popup h2 { margin:0 0 8px; font-size:15px; }
-  .roleBtn { display:block; width:100%; margin:6px 0; padding:10px 12px; font-size:14px; border-radius:12px; border:1px solid #ddd; background:#f7f7f7; cursor:pointer; }
-  .roleBtn:active { transform: translateY(1px); }
-  .small { font-size:12px; color:#666; }
-  #status { position:absolute; left:10px; top:10px; z-index:5; background:rgba(255,255,255,.95); border:1px solid #ddd; border-radius:12px; padding:8px 10px; font-size:12px; max-width:70%; box-shadow:0 8px 24px rgba(0,0,0,.08); }
 </style>
 </head>
 <body>
-<header>
-  <h1>Kachelkarte Köln (Deutz–Mülheim) + Stadtteilgrenzen</h1>
-  <p>
-    Diese Version nutzt <b>OSM-Kacheln</b> (online) und lädt die <b>Stadtteilgrenzen</b> live aus dem Geoportal der Stadt Köln (ArcGIS).
-    <br>Tippe ein Viertel an → Farbauswahl erscheint sofort.
-  </p>
-</header>
 
-<div id="map" aria-label="Karte">
-  <div id="tiles"></div>
+<h2>Interaktive Karte: Strukturwandel Köln rechtsrheinisch</h2>
+<p>Tippe auf ein Gebiet, wähle die aktuelle Hauptrolle – die Farbe wird automatisch angepasst.</p>
 
-  <div id="overlay">
-    <svg id="svg" viewBox="0 0 1000 700" preserveAspectRatio="none" aria-label="Overlay">
-      <g id="districtLayer"></g>
-      <g id="labelLayer"></g>
-    </svg>
-  </div>
+<div id="map"></div>
 
-  <div id="status"><b>Status:</b> <span id="statusText">Lade…</span></div>
-
-  <div id="hud">
-    <div class="btn" id="zoomIn">＋</div>
-    <div class="btn" id="zoomOut">－</div>
-    <div class="btn" id="reset">Ansicht</div>
-  </div>
-
-  <div id="legend">
-    <b>Rollen</b>
-    <div class="row"><span class="sw" style="background:blue"></span>Industrie</div>
-    <div class="row"><span class="sw" style="background:yellow"></span>Start-ups / Dienstleistungen</div>
-    <div class="row"><span class="sw" style="background:red"></span>Wohnen / Gentrifizierung</div>
-    <div class="row"><span class="sw" style="background:green"></span>Freizeit / Kultur</div>
-    <div class="small" style="margin-top:6px;">Wenn du gar keine Karte siehst: oft blockiert das Schulnetz OSM oder das Geoportal → teste Hotspot.</div>
-  </div>
-
-  <div id="popupWrap">
-    <div id="scrim"></div>
-    <div id="popup">
-      <h2 id="popupTitle">Viertel</h2>
-      <button class="roleBtn" data-role="Industrie">Industrie (blau)</button>
-      <button class="roleBtn" data-role="Start-ups / Dienstleistungen">Start-ups / Dienstleistungen (gelb)</button>
-      <button class="roleBtn" data-role="Wohnen / Gentrifizierung">Wohnen / Gentrifizierung (rot)</button>
-      <button class="roleBtn" data-role="Freizeit / Kultur">Freizeit / Kultur (grün)</button>
-      <button class="roleBtn" data-role="none">Keine Zuordnung</button>
-      <div class="small" style="margin-top:8px; display:flex; justify-content:space-between; gap:10px; align-items:center;">
-        <span>Auswahl wird lokal gespeichert.</span>
-        <button class="btn" id="closePopup" style="padding:8px 10px; font-size:13px;">Schließen</button>
-      </div>
-    </div>
-  </div>
-</div>
-
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
-(() => {
-  const tileSize = 256;
-  const tilesEl = document.getElementById('tiles');
-  const mapEl = document.getElementById('map');
-  const districtLayer = document.getElementById('districtLayer');
-  const labelLayer = document.getElementById('labelLayer');
-  const statusText = document.getElementById('statusText');
 
-  let center = {lat: 50.945, lon: 6.995};
-  let zoom = 13;
-  let drag = {active:false, x:0, y:0, center0:null};
+// Karte initialisieren, Zoom auf Mülheim/Deutz
+var map = L.map('map').setView([50.945, 6.995], 15);
 
-  const tileServers = [
-    (z,x,y)=>`https://a.tile.openstreetmap.org/${z}/${x}/${y}.png`,
-    (z,x,y)=>`https://b.tile.openstreetmap.org/${z}/${x}/${y}.png`,
-    (z,x,y)=>`https://c.tile.openstreetmap.org/${z}/${x}/${y}.png`,
-    (z,x,y)=>`https://a.tile.openstreetmap.de/${z}/${x}/${y}.png`,
-    (z,x,y)=>`https://a.tile.openstreetmap.fr/hot/${z}/${x}/${y}.png`
-  ];
-  let tileServerIdx = 0;
+// Hintergrundkarte OpenStreetMap
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap-Mitwirkende'
+}).addTo(map);
 
-  function lonLatToWorldPx(lon, lat, z){
-    const scale = tileSize * (1 << z);
-    const x = (lon + 180) / 360 * scale;
-    const sinLat = Math.sin(lat * Math.PI/180);
-    const y = (0.5 - Math.log((1 + sinLat) / (1 - sinLat)) / (4*Math.PI)) * scale;
-    return {x, y};
-  }
-  function worldPxToLonLat(x, y, z){
-    const scale = tileSize * (1 << z);
-    const lon = x / scale * 360 - 180;
-    const n = Math.PI - 2 * Math.PI * y / scale;
-    const lat = 180/Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
-    return {lon, lat};
-  }
-  function clampLat(lat){ return Math.max(-85, Math.min(85, lat)); }
-
-  function clearTiles(){
-    tilesEl.innerHTML = "";
-  }
-
-  function renderTiles(){
-    const rect = mapEl.getBoundingClientRect();
-    const w = rect.width, h = rect.height;
-
-    const centerPx = lonLatToWorldPx(center.lon, center.lat, zoom);
-    const topLeftWorld = {x: centerPx.x - w/2, y: centerPx.y - h/2};
-    const bottomRightWorld = {x: centerPx.x + w/2, y: centerPx.y + h/2};
-
-    const x0 = Math.floor(topLeftWorld.x / tileSize);
-    const y0 = Math.floor(topLeftWorld.y / tileSize);
-    const x1 = Math.floor(bottomRightWorld.x / tileSize);
-    const y1 = Math.floor(bottomRightWorld.y / tileSize);
-
-    const maxTile = (1<<zoom) - 1;
-
-    clearTiles();
-
-    for(let x = x0-1; x <= x1+1; x++){
-      for(let y = y0-1; y <= y1+1; y++){
-        if(y < 0 || y > maxTile) continue;
-        let xx = x;
-        while(xx < 0) xx += (maxTile+1);
-        while(xx > maxTile) xx -= (maxTile+1);
-
-        const img = new Image();
-        img.width = tileSize;
-        img.height = tileSize;
-        img.style.position = 'absolute';
-        img.style.left = ((x*tileSize) - topLeftWorld.x) + 'px';
-        img.style.top = ((y*tileSize) - topLeftWorld.y) + 'px';
-
-        img.src = tileServers[tileServerIdx](zoom, xx, y);
-        img.onerror = () => {
-          if(tileServerIdx < tileServers.length - 1){
-            tileServerIdx++;
-            statusText.textContent = 'Tile-Server gewechselt (Filter?)…';
-            renderTiles();
-          } else {
-            statusText.textContent = 'Kacheln blockiert (Schulfilter?) – teste Hotspot.';
-          }
-        };
-        tilesEl.appendChild(img);
-      }
-    }
-
-    statusText.textContent = 'Kacheln OK · lade Grenzen…';
-    renderDistricts();
-  }
-
-  document.getElementById('zoomIn').addEventListener('click', ()=>{ zoom = Math.min(19, zoom+1); renderTiles(); });
-  document.getElementById('zoomOut').addEventListener('click', ()=>{ zoom = Math.max(10, zoom-1); renderTiles(); });
-  document.getElementById('reset').addEventListener('click', ()=>{ center={lat:50.945, lon:6.995}; zoom=13; tileServerIdx=0; renderTiles(); });
-
-  mapEl.addEventListener('pointerdown', (e)=>{
-    drag.active = true;
-    drag.x = e.clientX; drag.y = e.clientY;
-    drag.center0 = {...center};
-    mapEl.setPointerCapture(e.pointerId);
-  });
-  mapEl.addEventListener('pointermove', (e)=>{
-    if(!drag.active) return;
-    const rect = mapEl.getBoundingClientRect();
-    const dx = e.clientX - drag.x;
-    const dy = e.clientY - drag.y;
-    const c0px = lonLatToWorldPx(drag.center0.lon, drag.center0.lat, zoom);
-    const c1px = {x: c0px.x - dx, y: c0px.y - dy};
-    const ll = worldPxToLonLat(c1px.x, c1px.y, zoom);
-    center = {lat: clampLat(ll.lat), lon: ll.lon};
-    renderTiles();
-  });
-  mapEl.addEventListener('pointerup', ()=>{ drag.active=false; });
-  mapEl.addEventListener('pointercancel', ()=>{ drag.active=false; });
-
-  // ------- Popup + Roles -------
-  const roleColors = {
+// Farben für Rollen
+var roleColors = {
     "Industrie": "blue",
     "Start-ups / Dienstleistungen": "yellow",
     "Wohnen / Gentrifizierung": "red",
     "Freizeit / Kultur": "green"
-  };
-  const STORAGE_KEY = "koeln_roles_no_leaflet_v1";
-  let saved = {};
-  try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch { saved = {}; }
+};
 
-  let selected = null; // {name, el}
-  const popupWrap = document.getElementById('popupWrap');
-  const popupTitle = document.getElementById('popupTitle');
+// Gebiete (Polygone) mit Koordinaten
+var areas = [
+  {name: "Deutz", coords:[[50.9407,6.995],[50.9407,6.985],[50.933,6.985],[50.933,6.995]]},
+  {name: "Carlswerk", coords:[[50.956,7.013],[50.956,7.021],[50.950,7.021],[50.950,7.013]]},
+  {name: "Schanzenstraße", coords:[[50.955,7.008],[50.955,7.012],[50.952,7.012],[50.952,7.008]]},
+  {name: "Messe/Lanxess-Arena", coords:[[50.940,6.975],[50.940,6.985],[50.935,6.985],[50.935,6.975]]}
+];
 
-  function openPopup(name){
-    popupTitle.textContent = name;
-    popupWrap.style.display = 'block';
-  }
-  function closePopup(){ popupWrap.style.display = 'none'; }
-  document.getElementById('closePopup').addEventListener('click', closePopup);
-  document.getElementById('scrim').addEventListener('click', closePopup);
+// Objekt zum Speichern der Polygon-Layer
+var polygonLayers = {};
 
-  popupWrap.querySelectorAll('.roleBtn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      if(!selected) return;
-      const role = btn.getAttribute('data-role');
-      if(role === 'none'){
-        delete saved[selected.name];
-      } else {
-        saved[selected.name] = role;
-      }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
-      stylePath(selected.el, selected.name);
-      closePopup();
-    });
-  });
-
-  function stylePath(path, name){
-    const role = saved[name];
-    if(role && roleColors[role]){
-      path.style.fill = roleColors[role];
-      path.style.fillOpacity = "0.45";
-    } else {
-      path.style.fill = "white";
-      path.style.fillOpacity = "0.15";
+// Funktion Pop-up erstellen
+function createPopup(layer) {
+    var popupContent = "<b>"+layer.feature.properties.name+"</b><br/>Wähle die Hauptrolle:<br/>";
+    for (var role in roleColors) {
+        popupContent += "<button onclick='setRole(""+layer.feature.properties.name+"",""+role+"")'>"+role+"</button>";
     }
-  }
+    layer.bindPopup(popupContent, {autoClose: true});
+}
 
-  // ------- Load district boundaries from Cologne ArcGIS (viewport-limited) -------
-  async function fetchDistricts(){
-    const rect = mapEl.getBoundingClientRect();
-    const w = rect.width, h = rect.height;
-    const cPx = lonLatToWorldPx(center.lon, center.lat, zoom);
-    const tl = worldPxToLonLat(cPx.x - w/2, cPx.y - h/2, zoom);
-    const br = worldPxToLonLat(cPx.x + w/2, cPx.y + h/2, zoom);
-    const xmin = tl.lon, ymax = tl.lat, xmax = br.lon, ymin = br.lat;
-
-    const base = "https://geoportal.stadt-koeln.de/arcgis/rest/services/Basiskarten/kgg/MapServer/3/query";
-    const params = new URLSearchParams({
-      f: "pjson",
-      where: "1=1",
-      outFields: "*",
-      outSR: "4326",
-      inSR: "4326",
-      geometry: `${xmin},${ymin},${xmax},${ymax}`,
-      geometryType: "esriGeometryEnvelope",
-      spatialRel: "esriSpatialRelIntersects",
-      returnGeometry: "true",
-      resultRecordCount: "2000"
-    });
-
-    const res = await fetch(base + "?" + params.toString());
-    if(!res.ok) throw new Error(res.status);
-    const data = await res.json();
-    const feats = (data.features || []).map((f, idx) => {
-      const a = f.attributes || {};
-      const name = a.STADTTEIL || a.NAME || a.name || ("Stadtteil " + idx);
-      const rings = (f.geometry && f.geometry.rings) ? f.geometry.rings : [];
-      return {name, rings};
-    });
-    return feats;
-  }
-
-  function ringsToPathD(rings){
-    // project lon/lat to svg coords (0..1000 x 0..700)
-    const rect = mapEl.getBoundingClientRect();
-    const viewW = 1000, viewH = 700;
-
-    const cPx = lonLatToWorldPx(center.lon, center.lat, zoom);
-    function lonLatToSvg(lon, lat){
-      const pt = lonLatToWorldPx(lon, lat, zoom);
-      const x = (pt.x - cPx.x) + rect.width/2;
-      const y = (pt.y - cPx.y) + rect.height/2;
-      return {
-        x: x / rect.width * viewW,
-        y: y / rect.height * viewH
-      };
+// Funktion zum Setzen der Rolle (Farbe)
+function setRole(areaName, role) {
+    var layer = polygonLayers[areaName];
+    if(layer) {
+        layer.setStyle({fillColor: roleColors[role], fillOpacity:0.6});
+        layer.closePopup(); // Pop-up automatisch schließen
     }
+}
 
-    let d = "";
-    for(const ring of rings){
-      ring.forEach((pt, j) => {
-        const s = lonLatToSvg(pt[0], pt[1]);
-        d += (j===0 ? `M ${s.x.toFixed(2)} ${s.y.toFixed(2)}` : ` L ${s.x.toFixed(2)} ${s.y.toFixed(2)}`);
-      });
-      d += " Z ";
-    }
-    return d;
-  }
+// Polygone erzeugen
+areas.forEach(function(a){
+    var polygon = L.polygon(a.coords, {color:"black", fillColor:"white", fillOpacity:0.4}).addTo(map);
+    polygon.feature = {properties:{name:a.name}};
+    createPopup(polygon);
+    polygonLayers[a.name] = polygon;
+});
 
-  async function renderDistricts(){
-    try{
-      const feats = await fetchDistricts();
-      districtLayer.innerHTML = "";
-      labelLayer.innerHTML = "";
-
-      feats.forEach((f) => {
-        if(!f.rings || f.rings.length === 0) return;
-        const d = ringsToPathD(f.rings);
-
-        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        path.setAttribute("d", d);
-        path.setAttribute("class", "district");
-        path.setAttribute("data-name", f.name);
-        stylePath(path, f.name);
-
-        path.addEventListener("click", (ev) => {
-          ev.stopPropagation();
-          document.querySelectorAll(".district.selected").forEach(p => p.classList.remove("selected"));
-          path.classList.add("selected");
-          selected = {name: f.name, el: path};
-          openPopup(f.name);
-        });
-
-        districtLayer.appendChild(path);
-
-        // centroid label (rough: average of first ring points)
-        const ring0 = f.rings[0];
-        let sx=0, sy=0, n=0;
-        ring0.forEach(pt => {
-          const rect = mapEl.getBoundingClientRect();
-          const viewW = 1000, viewH = 700;
-          const cPx = lonLatToWorldPx(center.lon, center.lat, zoom);
-          const wpx = lonLatToWorldPx(pt[0], pt[1], zoom);
-          const x = (wpx.x - cPx.x) + rect.width/2;
-          const y = (wpx.y - cPx.y) + rect.height/2;
-          sx += x / rect.width * viewW;
-          sy += y / rect.height * viewH;
-          n++;
-        });
-        if(n>0){
-          const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-          text.setAttribute("x", (sx/n).toFixed(2));
-          text.setAttribute("y", (sy/n).toFixed(2));
-          text.setAttribute("class", "label");
-          text.setAttribute("text-anchor", "middle");
-          text.setAttribute("dominant-baseline", "middle");
-          text.textContent = f.name;
-          labelLayer.appendChild(text);
-        }
-      });
-
-      statusText.textContent = "Kacheln + Grenzen geladen. Tippe ein Viertel an.";
-    } catch(e){
-      console.warn(e);
-      statusText.textContent = "Grenzen nicht ladbar (Geoportal/Filter).";
-    }
-  }
-
-  renderTiles();
-})();
 </script>
 </body>
 </html>
