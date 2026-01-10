@@ -8,13 +8,13 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
   html, body { height:100%; margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-body { display:flex; flex-direction:column; }
-header { padding:10px 12px; border-bottom:1px solid #ddd; background:#fff; flex:0 0 auto; }
-header h1 { font-size:16px; margin:0 0 6px; }
-header p { margin:0; font-size:12px; color:#444; line-height:1.25; }
-#map { flex:1 1 auto; width:100%; min-height: 300px; }
+  body { display:flex; flex-direction:column; }
+  header { padding:10px 12px; border-bottom:1px solid #ddd; background:#fff; flex:0 0 auto; }
+  header h1 { font-size:16px; margin:0 0 6px; }
+  header p { margin:0; font-size:12px; color:#444; line-height:1.25; }
+  #map { flex:1 1 auto; width:100%; min-height: 320px; }
 
-  /* SW + sehr deutlich */
+  /* SW + deutlich (Straßen/Schrift erkennbar) */
   .leaflet-tile { filter: grayscale(100%) contrast(220%) brightness(92%); }
 
   .roleBtn{
@@ -24,7 +24,6 @@ header p { margin:0; font-size:12px; color:#444; line-height:1.25; }
     border:1px solid #ddd; background:#f7f7f7;
   }
   .roleBtn:active { transform: translateY(1px); }
-
   .dangerBtn{ background:#fff0f0; border-color:#f3b2b2; }
 
   .statusBox{
@@ -66,7 +65,7 @@ header p { margin:0; font-size:12px; color:#444; line-height:1.25; }
   <h1>Strukturwandel Köln – Rollenkarte (Deutz & Mülheim)</h1>
   <p>
     Klick auf eine Fläche → Rolle wählen. Zoom ≥16: Schanzenstraße wird kleinteiliger (Teilflächen passen sich an die Bezirksgrenzen an).
-    <br><b>Neu:</b> Button „Rechteck hinzufügen“ → Ecke 1 tippen → Ecke 2 tippen → Rechteck anlegen (kann eingefärbt & gelöscht werden).
+    <br><b>Feld hinzufügen:</b> Button unten links → Ecke 1 tippen → Ecke 2 tippen → Rechteck anlegen (färbbar & löschbar).
   </p>
 </header>
 
@@ -74,16 +73,26 @@ header p { margin:0; font-size:12px; color:#444; line-height:1.25; }
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-const map = L.map('map', { zoomControl: true }).setView([50.948, 7.008], 13);
+/* ========= Safety: sichtbare Fehlermeldung statt "weiß" ========= */
+window.addEventListener('error', (e) => {
+  try {
+    const msg = (e && e.message) ? e.message : 'Unbekannter Fehler';
+    const box = document.querySelector('.statusBox');
+    if(box) box.innerHTML = "<b>Status:</b> JS-Fehler: <span style='color:#b00'>" + msg + "</span>";
+  } catch(_) {}
+});
 
-// Panes (Z-Order steuert Überlagerung)
+const map = L.map('map', { zoomControl: true }).setView([50.948, 7.008], 13);
+setTimeout(() => { try { map.invalidateSize(); } catch(e){} }, 60);
+
+/* Panes (Z-Order steuert Überlagerung) */
 map.createPane('paneST');      map.getPane('paneST').style.zIndex = 350;
 map.createPane('paneSV');      map.getPane('paneSV').style.zIndex = 360;
 map.createPane('paneMICRO');   map.getPane('paneMICRO').style.zIndex = 370;
 map.createPane('paneUSER');    map.getPane('paneUSER').style.zIndex = 410;
 map.createPane('panePOI');     map.getPane('panePOI').style.zIndex = 420;
 
-// Basemap (OSM) – SW/High-Contrast via CSS
+/* Basemap (OSM) – SW/High-Contrast via CSS */
 const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19, attribution: '© OpenStreetMap-Mitwirkende'
 }).addTo(map);
@@ -94,7 +103,7 @@ const carto = L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/li
 });
 L.control.layers({"OSM Straßen (SW Hi-Contrast)": osm, "Carto Light (SW)": carto}, null, {collapsed:true}).addTo(map);
 
-// Rollen / Farben
+/* Rollen / Farben (inkl. pink + hellgrün) */
 const roleColors = {
   "Industrie": "blue",
   "Start-ups": "yellow",
@@ -103,8 +112,8 @@ const roleColors = {
   "Einzelhandel/Gewerbe": "hotpink"
 };
 
-const STORAGE_KEY = "koeln_roles_deutz_muelheim_v6";
-const USER_RECTS_KEY = "koeln_user_rects_v1";
+const STORAGE_KEY = "koeln_roles_deutz_muelheim_v10";
+const USER_RECTS_KEY = "koeln_user_rects_v2";
 
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch(e) { saved = {}; }
@@ -119,9 +128,9 @@ function popupHTML(key, name, allowDelete=false){
     <b>${name}</b><br>
     <button class="roleBtn" onclick="setRole('${key}','Industrie')">Industrie (blau)</button>
     <button class="roleBtn" onclick="setRole('${key}','Start-ups')">Start-ups (gelb)</button>
+    <button class="roleBtn" onclick="setRole('${key}','Einzelhandel/Gewerbe')">Einzelhandel/Gewerbe (pink)</button>
     <button class="roleBtn" onclick="setRole('${key}','Wohnen')">Wohnen (rot)</button>
     <button class="roleBtn" onclick="setRole('${key}','Freizeit/Kultur')">Freizeit/Kultur (hellgrün)</button>
-    <button class="roleBtn" onclick="setRole('${key}','Einzelhandel/Gewerbe')">Einzelhandel/Gewerbe (pink)</button>
     <button class="roleBtn" onclick="clearRole('${key}')">Keine Zuordnung</button>
     ${allowDelete ? `<button class="roleBtn dangerBtn" onclick="deleteUserRect('${key}')">Rechteck löschen</button>` : ``}
   `;
@@ -132,12 +141,14 @@ const microGroup = L.layerGroup([], {pane:'paneMICRO'}).addTo(map);
 const userGroup  = L.layerGroup([], {pane:'paneUSER'}).addTo(map);
 
 window.setRole = function(key, role){
+  if(drawMode) return; // im Rechteckmodus nichts anderes markieren
   saved[key] = role; saveRoles();
   const lyr = layerByKey[key];
   if(lyr && lyr.setStyle) lyr.setStyle(styleForKey(key, lyr.__kind));
   if(lyr) lyr.closePopup();
 };
 window.clearRole = function(key){
+  if(drawMode) return;
   delete saved[key]; saveRoles();
   const lyr = layerByKey[key];
   if(lyr && lyr.setStyle) lyr.setStyle(styleForKey(key, lyr.__kind));
@@ -159,7 +170,7 @@ function styleForKey(key, kind){
   return { color:"#111", weight: 3, fillColor, fillOpacity: hasRole ? 0.55 : baseOpacity };
 }
 
-// Status
+/* Status */
 const statusCtl = L.control({position:'topleft'});
 let statusEl;
 statusCtl.onAdd = function(){
@@ -171,7 +182,7 @@ statusCtl.onAdd = function(){
 statusCtl.addTo(map);
 function setStatus(html){ if(statusEl) statusEl.innerHTML = html; }
 
-// ArcGIS fetch
+/* ArcGIS fetch */
 async function arcgisQuery(layerId, params){
   const base = `https://geoportal.stadt-koeln.de/arcgis/rest/services/Basiskarten/kgg/MapServer/${layerId}/query`;
   const p = new URLSearchParams(params);
@@ -222,7 +233,6 @@ function pickName(props, candidates){
   return null;
 }
 
-// centroid from first ring average
 function approxCentroidLonLat(feature){
   try{
     const ring = feature.geometry.coordinates[0];
@@ -232,8 +242,7 @@ function approxCentroidLonLat(feature){
   } catch(e){ return null; }
 }
 
-// Sutherland–Hodgman polygon clipping: clip subject polygon by axis-aligned rectangle
-// subject: array of [lon,lat]; rect: {minX,maxX,minY,maxY} in lon/lat
+/* Polygon clipping (Sutherland–Hodgman) */
 function clipPolyToRect(subject, rect){
   function inside(p, edge){
     const x=p[0], y=p[1];
@@ -278,21 +287,18 @@ function clipPolyToRect(subject, rect){
       S = E;
     }
   }
-  // remove near-duplicates
   const cleaned = [];
   for(const p of output){
-    if(cleaned.length===0){
-      cleaned.push(p);
-    } else {
+    if(cleaned.length===0) cleaned.push(p);
+    else {
       const q = cleaned[cleaned.length-1];
       if(Math.abs(p[0]-q[0])>1e-10 || Math.abs(p[1]-q[1])>1e-10) cleaned.push(p);
     }
   }
-  // close ring not necessary for Leaflet polygon
   return cleaned.length>=3 ? cleaned : [];
 }
 
-// ROUTE envelope (enger): Deutz bis Mülheim
+/* ROUTE envelope */
 const env = { xmin: 6.975, ymin: 50.932, xmax: 7.035, ymax: 50.972 };
 const RIGHT_BANK_LON_MIN = 6.975;
 
@@ -321,7 +327,6 @@ async function loadBoundaries(){
   const st = await arcgisQuery(3, qCommon);
   const sv = await arcgisQuery(1, qCommon);
 
-  // Filter rechtsrheinisch + nur Deutz/Mülheim + remove "Siedlung*"
   st.features = st.features.filter(f => {
     const c = approxCentroidLonLat(f);
     if(!(c && c.lon >= RIGHT_BANK_LON_MIN)) return false;
@@ -334,7 +339,16 @@ async function loadBoundaries(){
     const c = approxCentroidLonLat(f);
     if(!(c && c.lon >= RIGHT_BANK_LON_MIN)) return false;
     const nm = (pickName(f.properties, ["STADTVIERTEL","NAME","Name","stadtviertel","STV","BEZEICHNUNG"]) || "").trim();
-    if(/^Siedlung/i.test(nm)) return false;
+    
+    const lname = nm.toLowerCase();
+    if(
+      lname.includes("holweide-west") ||
+      lname.includes("kleinherl") ||
+      lname.includes("buchheim") ||
+      lname.includes("böcking") || lname.includes("boecking") ||
+      lname.includes("mülheim-nord") || lname.includes("muelheim-nord")
+    ) return false;
+if(/^Siedlung/i.test(nm)) return false;
 
     const stnm = (pickName(f.properties, ["STADTTEIL","STADTTEILNAME","stadtteil"]) || "").trim();
     const bznm = (pickName(f.properties, ["STADTBEZIRK","BEZIRK","stadtbezirk"]) || "").trim();
@@ -342,14 +356,12 @@ async function loadBoundaries(){
     return tag.includes("mülheim") || tag.includes("muelheim");
   });
 
-  // Reset micro
   schanzenTargets = [];
   microGroup.clearLayers();
 
   if(stLayer) map.removeLayer(stLayer);
   if(svLayer) map.removeLayer(svLayer);
 
-  // Stadtteile
   st.features.forEach(ft => {
     const nm = (pickName(ft.properties, ["STADTTEIL","NAME","Name","stadtteil"]) || "Ort").trim();
     ft.properties.__name = nm;
@@ -365,13 +377,12 @@ async function loadBoundaries(){
       const name = feature.properties.__name;
       layer.__kind = "ST";
       layerByKey[key] = layer;
-      layer.bindPopup(popupHTML(key, name), {maxWidth: 320});
+      layer.bindPopup(popupHTML(key, name), {maxWidth: 340});
       layer.on('click', () => { if(!drawMode) layer.openPopup(); });
       addPermanentLabel(layer, name, "districtLabel");
     }
   }).addTo(map);
 
-  // Stadtviertel (Mülheim)
   sv.features.forEach(ft => {
     const nm = (pickName(ft.properties, ["STADTVIERTEL","NAME","Name","stadtviertel","STV","BEZEICHNUNG"]) || "Ort").trim();
     ft.properties.__name = nm;
@@ -379,7 +390,6 @@ async function loadBoundaries(){
     ft.properties.__kind = "SV";
 
     if(/schanzenstr/i.test(nm) || /GE\s*schanzen/i.test(nm)){
-      // take first ring as boundary for micro clipping
       const ring = ft.geometry.coordinates[0];
       schanzenTargets.push({name: nm, ring});
     }
@@ -393,25 +403,21 @@ async function loadBoundaries(){
       const name = feature.properties.__name;
       layer.__kind = "SV";
       layerByKey[key] = layer;
-      layer.bindPopup(popupHTML(key, name), {maxWidth: 320});
+      layer.bindPopup(popupHTML(key, name), {maxWidth: 340});
       layer.on('click', () => { if(!drawMode) layer.openPopup(); });
       addPermanentLabel(layer, name, "districtLabel");
     }
   }).addTo(map);
 
-  // Spezialbezirke (oben, keine Farbmischung)
   addPOI("Lanxess Arena", [50.938338, 6.982951], 180);
   addPOI("koelnmesse",    [50.944600, 6.981800], 230);
   addPOI("Bhf Deutz",     [50.940830, 6.975000], 190);
   addPOI("Carlswerk",     [50.966074, 7.015056], 190);
 
-  // Restore user rectangles
   renderUserRects();
 
-  // View
   map.fitBounds(L.latLngBounds([[env.ymin, env.xmin],[env.ymax, env.xmax]]), {padding:[30,30]});
-
-  setStatus("<b>Status:</b> Fertig. Zoom ≥16: Schanzenstraße wird kleinteiliger. Button: Rechteck hinzufügen.");
+  setStatus("<b>Status:</b> Fertig. Zoom ≥16: Schanzenstraße wird kleinteiliger. Unten links: Feld hinzufügen.");
   updateMicroTiles();
 }
 
@@ -420,13 +426,13 @@ function addPOI(name, latlng, radius){
   const circle = L.circle(latlng, { pane:'panePOI', radius, ...styleForKey(key, "POI") });
   circle.__kind = "POI";
   layerByKey[key] = circle;
-  circle.bindPopup(popupHTML(key, name), {maxWidth: 300});
+  circle.bindPopup(popupHTML(key, name), {maxWidth: 320});
   circle.on('click', () => { if(!drawMode) circle.openPopup(); });
   circle.addTo(map);
   circle.bindTooltip(name, { permanent:true, direction:'top', offset:[0,-8], className:'poiLabel', opacity:1.0 });
 }
 
-// Zoom-abhängige Teilflächen (Schanzenstraße) – jetzt CLIPPED an Bezirksgrenzen
+/* Zoom-abhängige Teilflächen (Schanzenstraße) – CLIPPED */
 function updateMicroTiles(){
   microGroup.clearLayers();
   const z = map.getZoom();
@@ -434,9 +440,8 @@ function updateMicroTiles(){
 
   schanzenTargets.forEach(target => {
     const name = target.name;
-    const ring = target.ring; // [ [lon,lat], ... ]
+    const ring = target.ring;
 
-    // bbox
     let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
     ring.forEach(([x,y]) => { minX=Math.min(minX,x); minY=Math.min(minY,y); maxX=Math.max(maxX,x); maxY=Math.max(maxY,y); });
 
@@ -447,12 +452,7 @@ function updateMicroTiles(){
 
     for(let ix=0; ix<nx; ix++){
       for(let iy=0; iy<ny; iy++){
-        const rect = {
-          minX: minX + ix*dx,
-          maxX: minX + (ix+1)*dx,
-          minY: minY + iy*dy,
-          maxY: minY + (iy+1)*dy
-        };
+        const rect = { minX: minX + ix*dx, maxX: minX + (ix+1)*dx, minY: minY + iy*dy, maxY: minY + (iy+1)*dy };
         const clipped = clipPolyToRect(ring, rect);
         if(clipped.length < 3) continue;
 
@@ -466,7 +466,7 @@ function updateMicroTiles(){
         });
         poly.__kind = "SV";
         layerByKey[microKey] = poly;
-        poly.bindPopup(popupHTML(microKey, microName), {maxWidth: 320});
+        poly.bindPopup(popupHTML(microKey, microName), {maxWidth: 340});
         poly.on('click', () => { if(!drawMode) poly.openPopup(); });
         microGroup.addLayer(poly);
       }
@@ -474,9 +474,7 @@ function updateMicroTiles(){
   });
 }
 
-/* ============================
-   USER-RECHTECKE HINZUFÜGEN/LÖSCHEN
-   ============================ */
+/* ========= USER-RECHTECKE ========= */
 let drawMode = false;
 let firstCorner = null;
 let previewRect = null;
@@ -487,22 +485,20 @@ function updateAddRectButton(){
   if(drawMode){
     btn.style.background = '#ffe9a8';
     btn.style.borderColor = '#e0b800';
-    btn.style.fontWeight = '800';
+    btn.style.fontWeight = '900';
     btn.textContent = '✓ Rechteckmodus';
   } else {
     btn.style.background = '#fff';
     btn.style.borderColor = '#ddd';
-    btn.style.fontWeight = '600';
+    btn.style.fontWeight = '700';
     btn.textContent = '+ Rechteck';
   }
 }
 
-// enable/disable pointer events on existing vector layers so map clicks always work in draw mode
+/* Während drawMode: keine anderen Felder anklickbar, damit Klicks immer als Ecken zählen */
 function setOtherLayersPointerEvents(enabled){
   Object.keys(layerByKey).forEach(key => {
     const lyr = layerByKey[key];
-    // user rectangles should still be non-interactive during draw to avoid stealing clicks too
-    // => disable all vector layers' pointer events while drawing
     if(lyr && lyr._path){
       lyr._path.style.pointerEvents = enabled ? 'auto' : 'none';
     }
@@ -514,31 +510,26 @@ function setDrawMode(on){
   firstCorner = null;
   if(previewRect){ map.removeLayer(previewRect); previewRect=null; }
 
-  // prevent selecting / coloring existing fields while drawing, and allow placing rectangles "on top"
   setOtherLayersPointerEvents(!on);
 
-  if(on){
-    setStatus("<b>Status:</b> Rechteckmodus aktiv. Tippe Ecke 1, dann Ecke 2. (Zum Beenden erneut klicken)");
-  } else {
-    setStatus("<b>Status:</b> Fertig. Zoom ≥16: Schanzenstraße wird kleinteiliger. Button: Rechteck hinzufügen.");
-  }
+  if(on) setStatus("<b>Status:</b> Rechteckmodus aktiv. Tippe Ecke 1, dann Ecke 2. (Zum Beenden erneut klicken)");
+  else setStatus("<b>Status:</b> Fertig. Unten links: Feld hinzufügen.");
   updateAddRectButton();
 }
 
 function keyForUserRect(id){ return "USER:" + id; }
+
 function addUserRect(bounds){
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2,7);
-  userRects.push({id, bounds}); // bounds: [[lat,lng],[lat,lng]]
+  userRects.push({id, bounds});
   saveUserRects();
   renderUserRects();
 }
 
 window.deleteUserRect = function(key){
-  // key: USER:<id>
   const id = key.replace(/^USER:/,'');
   userRects = userRects.filter(r => r.id !== id);
   saveUserRects();
-  // also delete role assignment if any
   delete saved[key];
   saveRoles();
   renderUserRects();
@@ -546,17 +537,15 @@ window.deleteUserRect = function(key){
 
 function renderUserRects(){
   userGroup.clearLayers();
-
   userRects.forEach(r => {
     const key = keyForUserRect(r.id);
     const rect = L.rectangle(r.bounds, { pane:'paneUSER', ...styleForKey(key, "USER") });
     rect.__kind = "USER";
     layerByKey[key] = rect;
-    rect.bindPopup(popupHTML(key, "Eigenes Rechteck", true), {maxWidth: 320});
+    rect.bindPopup(popupHTML(key, "Eigenes Rechteck", true), {maxWidth: 340});
     rect.on('click', () => { if(!drawMode) rect.openPopup(); });
     userGroup.addLayer(rect);
 
-    // kleines dauerhaftes "+" Label (damit klar ist: von SuS hinzugefügt)
     const center = rect.getBounds().getCenter();
     const plus = L.marker(center, {
       pane:'paneUSER',
@@ -565,34 +554,34 @@ function renderUserRects(){
     });
     userGroup.addLayer(plus);
   });
+
+  // falls drawMode aktiv ist, nach Neurendern wieder deaktivieren
+  setOtherLayersPointerEvents(!drawMode);
 }
 
-// Map click handler for draw mode
+/* Map click handler for draw mode */
 map.on('click', (e) => {
   if(!drawMode) return;
+
   if(!firstCorner){
     firstCorner = e.latlng;
     setStatus("<b>Status:</b> Ecke 1 gesetzt. Tippe Ecke 2.");
-    // start preview
     previewRect = L.rectangle([firstCorner, firstCorner], {pane:'paneUSER', color:'#111', weight:2, fill:false}).addTo(map);
   } else {
     const second = e.latlng;
     const bounds = L.latLngBounds(firstCorner, second);
     if(previewRect){ map.removeLayer(previewRect); previewRect=null; }
     addUserRect([[bounds.getSouthWest().lat, bounds.getSouthWest().lng],[bounds.getNorthEast().lat, bounds.getNorthEast().lng]]);
-    setDrawMode(false);
+    setDrawMode(false); // automatisch beenden
   }
 });
 
 map.on('mousemove', (e) => {
   if(!drawMode || !firstCorner || !previewRect) return;
-  const bounds = L.latLngBounds(firstCorner, e.latlng);
-  previewRect.setBounds(bounds);
+  previewRect.setBounds(L.latLngBounds(firstCorner, e.latlng));
 });
 
-/* ============================
-   Tools Control
-   ============================ */
+/* Tools: nur "Feld hinzufügen" unten links, etwas höher */
 const tools = L.control({position:'bottomleft'});
 tools.onAdd = function() {
   const div = L.DomUtil.create('div', 'statusBox');
@@ -607,32 +596,13 @@ tools.onAdd = function() {
 };
 tools.addTo(map);
 
-function resetColors(){
-  saved = {}; saveRoles();
-  Object.keys(layerByKey).forEach(key => {
-    const lyr = layerByKey[key];
-    if(lyr && lyr.setStyle) lyr.setStyle(styleForKey(key, lyr.__kind || "SV"));
-  });
-}
-function exportText(){
-  const keys = Object.keys(layerByKey).sort();
-  const out = keys.map(k => ({gebiet: k.replace(/^ST:/,"").replace(/^SV:/,"").replace(/^POI:/,"").replace(/^MICRO:/,"").replace(/^USER:/,"Eigenes Rechteck "), rolle: saved[k] || ""}));
-  prompt("Kopiere den Export-Text (Copy):", JSON.stringify(out, null, 2));
-}
-
 document.addEventListener('click', (e) => {
   if(e.target && e.target.id === 'btnAddRect') setDrawMode(!drawMode);
-  // removed setDrawMode(false);
-  // removed loadBoundaries().catch(err => setStatus("<b>Status:</b> Fehler: " + err.message));
-  // removed resetColors();
-  // removed exportText();
 });
 
 map.on('zoomend', updateMicroTiles);
 
-// Start
 updateAddRectButton();
-setTimeout(() => { try { map.invalidateSize(); } catch(e){} }, 50);
 loadBoundaries().catch(err => {
   console.error(err);
   setStatus("<b>Status:</b> Fehler beim Laden der Grenzen.<br><span style='color:#b00'>"+ err.message +"</span>");
