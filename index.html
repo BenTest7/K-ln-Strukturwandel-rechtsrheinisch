@@ -112,12 +112,43 @@ const roleColors = {
   "Einzelhandel/Gewerbe": "hotpink"
 };
 
+
+const EXCLUDED_OFFICIAL = [
+  "holweide-west",
+  "kleinherl",
+  "buchheim",
+  "böcking-siedlung",
+  "boecking-siedlung",
+  "böcking",
+  "boecking",
+  "mülheim-nord",
+  "muelheim-nord"
+];
+
+function isExcludedOfficial(name){
+  const n = (name || "").toLowerCase();
+  return EXCLUDED_OFFICIAL.some(x => n.includes(x));
+}
+
+function purgeExcludedFromStorage(){
+  try{
+    Object.keys(saved || {}).forEach(k => {
+      const nm = k.replace(/^SV:/,"").replace(/^ST:/,"").replace(/^POI:/,"").replace(/^MICRO:/,"");
+      if(isExcludedOfficial(nm)) delete saved[k];
+    });
+    saveRoles();
+  } catch(e){}
+}
+
+
 const STORAGE_KEY = "koeln_roles_deutz_muelheim_v10";
 const USER_RECTS_KEY = "koeln_user_rects_v2";
 
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch(e) { saved = {}; }
 function saveRoles(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(saved)); }
+
+purgeExcludedFromStorage();
 
 let userRects = [];
 try { userRects = JSON.parse(localStorage.getItem(USER_RECTS_KEY) || "[]"); } catch(e) { userRects = []; }
@@ -310,6 +341,7 @@ function addPermanentLabel(layer, name, className){
 }
 
 async function loadBoundaries(){
+  purgeExcludedFromStorage();
   setStatus("<b>Status:</b> Lade Deutz & Mülheim…");
 
   const qCommon = {
@@ -331,6 +363,7 @@ async function loadBoundaries(){
     const c = approxCentroidLonLat(f);
     if(!(c && c.lon >= RIGHT_BANK_LON_MIN)) return false;
     const nm = (pickName(f.properties, ["STADTTEIL","NAME","Name","stadtteil"]) || "").trim();
+    if(isExcludedOfficial(nm)) return false;
     if(/^Siedlung/i.test(nm)) return false;
     return /deutz/i.test(nm) || /mülheim/i.test(nm) || /muelheim/i.test(nm);
   });
@@ -339,6 +372,7 @@ async function loadBoundaries(){
     const c = approxCentroidLonLat(f);
     if(!(c && c.lon >= RIGHT_BANK_LON_MIN)) return false;
     const nm = (pickName(f.properties, ["STADTVIERTEL","NAME","Name","stadtviertel","STV","BEZEICHNUNG"]) || "").trim();
+    if(isExcludedOfficial(nm)) return false;
     
     const lname = nm.toLowerCase();
     if(
