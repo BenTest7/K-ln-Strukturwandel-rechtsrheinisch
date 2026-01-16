@@ -64,7 +64,7 @@
 <header>
   <h1>Strukturwandel Köln – Rollenkarte (Deutz & Mülheim)</h1>
   <p>
-    Klick auf eine Fläche → Rolle wählen. Zoom ≥16: Schanzenstraße wird kleinteiliger (Teilflächen passen sich an die Bezirksgrenzen an).
+    Klick auf eine Fläche → Funktion/Rolle des Raums wählen. Zoom ≥16: Schanzenstraße wird kleinteiliger (Teilflächen passen sich an die Bezirksgrenzen an).
     <br><b>Feld hinzufügen:</b> Button unten links → Ecke 1 tippen → Ecke 2 tippen → Rechteck anlegen (färbbar & löschbar).
   </p>
 </header>
@@ -157,11 +157,11 @@ function saveUserRects(){ localStorage.setItem(USER_RECTS_KEY, JSON.stringify(us
 function popupHTML(key, name, allowDelete=false){
   return `
     <b>${name}</b><br>
-    <button class="roleBtn" onclick="setRole('${key}','Industrie')">Industrie (blau)</button>
-    <button class="roleBtn" onclick="setRole('${key}','Start-ups')">Start-ups (gelb)</button>
-    <button class="roleBtn" onclick="setRole('${key}','Einzelhandel/Gewerbe')">Einzelhandel/Gewerbe (pink)</button>
-    <button class="roleBtn" onclick="setRole('${key}','Wohnen')">Wohnen (rot)</button>
-    <button class="roleBtn" onclick="setRole('${key}','Freizeit/Kultur')">Freizeit/Kultur (hellgrün)</button>
+    <button class="roleBtn" onclick="setRole('${key}','Industrie')">Produktion & Logistik (Sekundär)</button>
+    <button class="roleBtn" onclick="setRole('${key}','Start-ups')">Innovation- und Kreativwirtschaft (Tertiär)</button>
+    <button class="roleBtn" onclick="setRole('${key}','Einzelhandel/Gewerbe')">Einzelhandel & Dienstleistungen (Tertiär)</button>
+    <button class="roleBtn" onclick="setRole('${key}','Wohnen')">Wohnen & soziale Infrastruktur</button>
+    <button class="roleBtn" onclick="setRole('${key}','Freizeit/Kultur')">Freizeit, Kultur & Mobilität</button>
     <button class="roleBtn" onclick="clearRole('${key}')">Keine Zuordnung</button>
     ${allowDelete ? `<button class="roleBtn dangerBtn" onclick="deleteUserRect('${key}')">Rechteck löschen</button>` : ``}
   `;
