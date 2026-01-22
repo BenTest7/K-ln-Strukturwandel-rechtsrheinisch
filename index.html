@@ -159,9 +159,9 @@ function saveUserRects(){ localStorage.setItem(USER_RECTS_KEY, JSON.stringify(us
 function popupHTML(key, name, allowDelete=false){
   return `
     <b>${name}</b><br>
-    <button class="roleBtn" onclick="setRole('${key}','Industrie')">Produktion & Logistik (Sekundär)</button>
-    <button class="roleBtn" onclick="setRole('${key}','Start-ups')">Innovation- und Kreativwirtschaft (Tertiär)</button>
-    <button class="roleBtn" onclick="setRole('${key}','Einzelhandel/Gewerbe')">Einzelhandel & Dienstleistungen (Tertiär)</button>
+    <button class="roleBtn" onclick="setRole('${key}','Industrie')">Produktion & Logistik</button>
+    <button class="roleBtn" onclick="setRole('${key}','Start-ups')">Innovation- und Kreativwirtschaft</button>
+    <button class="roleBtn" onclick="setRole('${key}','Einzelhandel/Gewerbe')">Einzelhandel & Dienstleistungen</button>
     <button class="roleBtn" onclick="setRole('${key}','Wohnen')">Wohnen & soziale Infrastruktur</button>
     <button class="roleBtn" onclick="setRole('${key}','Freizeit/Kultur')">Freizeit, Kultur & Mobilität</button>
     <button class="roleBtn" onclick="clearRole('${key}')">Keine Zuordnung</button>
